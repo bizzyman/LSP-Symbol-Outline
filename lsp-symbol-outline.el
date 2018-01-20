@@ -629,7 +629,7 @@ overlay on the hide-region-overlays \"ring\""
 
     ;; (set-fringe-style '(0 . 0))
 
-    (if (boundp evil-evilified-state-local-map)
+    (if (boundp 'evil-evilified-state-local-map)
         (define-key evil-evilified-state-local-map (kbd "d") #'lsp-symbol-outline-show-docstring-tip)
       )
 
