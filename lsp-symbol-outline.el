@@ -12,13 +12,13 @@
 (require 's)
 (require 'dash)
 (require 'tern)
+(require 'misc-cmds)
 
 (require 'evil)
 
 (require 'outline) ;;
 (require 'sgml-mode) ;;
 
-;; (require 'misc-cmds)
 ;; (require 'pos-tip)
 
 ;; vars
