@@ -74,7 +74,7 @@ Underlined symbols have documentation.
 ## Key Bindings
 
 * j move down
-* k mode up
+* k move up
 * TAB hide all sublevels
 * BACKTAB show all sublevels
 * f fold sublevel
