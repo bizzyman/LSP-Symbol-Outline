@@ -614,7 +614,9 @@ overlay on the hide-region-overlays \"ring\""
 
     (my-outline-mode)
 
-    (evil-snipe-mode 0)
+    (if (featurep 'evil-snipe)
+     (evil-snipe-mode 0))
+
     (setq-local mode-line-format nil)
 
     (setq-local inv 0)
