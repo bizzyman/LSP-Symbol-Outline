@@ -73,23 +73,23 @@ Underlined symbols have documentation.
 
 ## Key Bindings
 
-j move down
-k mode up
-TAB hide all sublevels
-BACKTAB show all sublevels
-f fold sublevel
-q kill window
-gg go to top
-G go to bottom
-o go to symbol in document lose focus
-i cycle argument visibility
-gh go up scope
-gk go up sibling
-gj do down sibling
-w widen to widest column
-s toggle sorted view (sorts by symbol category)
-l peek symbol (goes to location in document, but does not lose focus)
-d show documentation string if available
+* j move down
+* k mode up
+* TAB hide all sublevels
+* BACKTAB show all sublevels
+* f fold sublevel
+* q kill window
+* gg go to top
+* G go to bottom
+* o go to symbol in document lose focus
+* i cycle argument visibility
+* gh go up scope
+* gk go up sibling
+* gj do down sibling
+* w widen to widest column
+* s toggle sorted view (sorts by symbol category)
+* l peek symbol (goes to location in document, but does not lose focus)
+* d show documentation string if available
 
 ## Notes on current state of this package, lsp and bugs
 
