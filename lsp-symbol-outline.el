@@ -497,7 +497,7 @@ overlay on the hide-region-overlays \"ring\""
   (interactive)
   (evil-previous-line)
   ;; (forward-line -1)
-  (beginning-of-line)
+  ;; (beginning-of-line)
   (while (looking-at "$")
     (evil-previous-line)
     )
@@ -617,8 +617,7 @@ overlay on the hide-region-overlays \"ring\""
     (lsp-symbol-outline-print-outline outline-list buf)
 
     (lsp-symbol-outline-source-to-final)
-
-
+    
     ;; (imenu-list--set-mode-line)
     (insert " \t \n")
 
@@ -644,6 +643,7 @@ overlay on the hide-region-overlays \"ring\""
       )
 
     ;; (evil-local-mode 0)
+    ;; (evil-mode 1)
 
     (make-local-variable 'outline-regexp)
     (setq outline-regexp "^\\ +[^ ]")
@@ -1721,6 +1721,10 @@ overlay on the hide-region-overlays \"ring\""
     (backward-char 4)
     (delete-region (point) (mark))
     )
+
+  (read-only-mode 0)
+  (delete-trailing-whitespace)
+  (read-only-mode 1)
 
   )
 
