@@ -12,6 +12,8 @@
 (require 's)
 (require 'dash)
 
+(require 'evil)
+
 (require 'outline) ;;
 (require 'sgml-mode) ;;
 
