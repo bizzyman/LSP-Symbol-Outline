@@ -1,7 +1,7 @@
 # LSP-Symbol-Outline
 A tree like view for symbols in Emacs using the Language Server Protocol. Currently works with Javascript, Python and Java.
 
-![LSP-Symbol-outline](https://i.imgur.com/mpDgD3Y.png)ll
+![LSP-Symbol-outline](https://i.imgur.com/mpDgD3Y.png)
 
 ## DISCLAIMER
 This is both my first ever emacs package and an extremely early version of this package so be warned! It will have many bugs (which are welcome to be reported).
