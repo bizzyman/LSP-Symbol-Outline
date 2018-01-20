@@ -629,8 +629,10 @@ overlay on the hide-region-overlays \"ring\""
 
     ;; (set-fringe-style '(0 . 0))
 
+    (if (boundp evil-evilified-state-local-map)
+        (define-key evil-evilified-state-local-map (kbd "d") #'lsp-symbol-outline-show-docstring-tip)
+      )
 
-    (define-key evil-evilified-state-local-map (kbd "d") #'lsp-symbol-outline-show-docstring-tip)
     ;; (evil-local-mode 0)
 
     (make-local-variable 'outline-regexp)
@@ -1925,6 +1927,7 @@ overlay on the hide-region-overlays \"ring\""
 (define-key my-outline-mode-map (kbd "w") #'my-outline-widen-to-widest-column)
 (define-key my-outline-mode-map (kbd "s") #'my-outline-toggle-sorted)
 (define-key my-outline-mode-map (kbd "l") #'outline-peek)
+(define-key my-outline-mode-map (kbd "d") #'lsp-symbol-outline-show-docstring-tip)
 
 (set-face-attribute 'outline-button-face nil :foreground "#93a0b2")
 
