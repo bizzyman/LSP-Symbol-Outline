@@ -110,7 +110,7 @@
   )
 
 (defface lsp-symbol-outline-arg-face
-  '((t (:inherit (font-lock-constant-face))
+  '((t (:inherit (font-lock-doc-face))
        ))
   "face for outline node arguments"
   )
@@ -497,6 +497,7 @@ overlay on the hide-region-overlays \"ring\""
   (interactive)
   (evil-previous-line)
   ;; (forward-line -1)
+  (beginning-of-line)
   (while (looking-at "$")
     (evil-previous-line)
     )
