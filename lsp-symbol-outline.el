@@ -11,6 +11,7 @@
 (require 'outline-magic)
 (require 's)
 (require 'dash)
+(require 'tern)
 
 (require 'evil)
 
@@ -42,7 +43,7 @@
   "face for outline links"
   )
 
-(defface outline-atom-icons-face
+(defface lsp-symbol-outline-atom-icons-face
   '((t
      :foreground "#a9afba"
      :family "atomicons"
@@ -51,13 +52,13 @@
   "face for atom-outline icons"
   )
 
-(defface outline-term-symbol-type-name-face
+(defface lsp-symbol-outline-term-symbol-type-name-face
   '((t (:foreground "white")
        ))
   "face for outline symbol types node"
   )
 
-(defface outline-class-face-has-doc
+(defface lsp-symbol-outline-class-face-has-doc
   '((t (:inherit (font-lock-type-face)
                  :underline t
                  )
@@ -66,13 +67,13 @@
   )
 
 
-(defface outline-class-face
+(defface lsp-symbol-outline-class-face
   '((t (:inherit (font-lock-type-face))
        ))
   "face for outline class nodes"
   )
 
-(defface outline-function-face-has-doc
+(defface lsp-symbol-outline-function-face-has-doc
   '((t (:inherit (font-lock-function-name-face)
                  :underline t
                  )
@@ -81,25 +82,25 @@
   )
 
 
-(defface outline-function-face
+(defface lsp-symbol-outline-function-face
   '((t (:inherit (font-lock-function-name-face))
        ))
   "face for outline function nodes"
   )
 
-(defface outline-var-face
+(defface lsp-symbol-outline-var-face
   '((t (:inherit (font-lock-variable-name-face))
        ))
   "face for outline variable nodes"
   )
 
-(defface outline-arg-face
+(defface lsp-symbol-outline-arg-face
   '((t (:inherit (font-lock-constant-face))
        ))
   "face for outline node arguments"
   )
 
-(defface outline-html-tag-props-face
+(defface lsp-symbol-outline-html-tag-props-face
   '((t (:foreground "#75B5AA")
        ))
   "face for outline html props"
@@ -110,7 +111,7 @@
 
 
 
-(defun my-outline-toggle-off-fl ()
+(defun lsp-symbol-outline-toggle-off-fl ()
 
   ;; (setq my-mode-font-lock-keywords
   ;;       (list
@@ -134,7 +135,7 @@
                         (point-max)
                         '(invisible t))
 
-(defun my-outline-toggle-on-fl ()
+(defun lsp-symbol-outline-toggle-on-fl ()
 
   (setq my-mode-font-lock-keywords
         (list
@@ -157,18 +158,18 @@
 
 
 
-(defun my-outline-widen-to-widest-column ()
+(defun lsp-symbol-outline-widen-to-widest-column ()
   (interactive)
   (setq window-size-fixed nil)
   (enlarge-window
-   (- (my-outline-find-longest-line) (window-width (selected-window)))
+   (- (lsp-symbol-outline-find-longest-line) (window-width (selected-window)))
    t)
 
   (setq window-size-fixed 'width)
   )
 
 
-(defun my-outline-find-longest-line ()
+(defun lsp-symbol-outline-find-longest-line ()
   (save-excursion
     (goto-longest-line (point-min) (point-max))
     (end-of-line)
@@ -377,7 +378,7 @@ overlay on the hide-region-overlays \"ring\""
     ;;                )
     ;;     )
     (overlay-put new-overlay 'before-string
-                 (propertize (format " +" 0 2 'face 'outline-var-face))
+                 (propertize (format " +" 0 2 'face 'lsp-symbol-outline-var-face))
                  )
 
     )
@@ -515,14 +516,14 @@ overlay on the hide-region-overlays \"ring\""
   (ov-in 'invisible t (point) (save-excursion (forward-line 1) (point)))
   )
 
-(define-derived-mode my-outline-mode special-mode "outline"
+(define-derived-mode lsp-symbol-outline-mode special-mode "outline"
   "my outline mode"
   (read-only-mode 1)
   ;; (set-face-attribute 'default nil :foreground "white")
   ;; (setq-local truncate-lines 1)
   )
 
-;; (add-hook 'my-outline-mode-hook '(lambda () (toggle-truncate-lines 1) (setq truncate-lines 1) (spacemacs/toggle-truncate-lines-on) (spacemacs/toggle-visual-line-navigation-off)))
+;; (add-hook 'lsp-symbol-outline-mode-hook '(lambda () (toggle-truncate-lines 1) (setq truncate-lines 1) (spacemacs/toggle-truncate-lines-on) (spacemacs/toggle-visual-line-navigation-off)))
 
 (defun outline-toggle-folding ()
   (interactive)
@@ -554,8 +555,8 @@ overlay on the hide-region-overlays \"ring\""
   )
 
 
-(evil-make-overriding-map my-outline-mode-map 'normal)
-(add-hook 'my-outline-mode-hook #'evil-normalize-keymaps)
+(evil-make-overriding-map lsp-symbol-outline-mode-map 'normal)
+(add-hook 'lsp-symbol-outline-mode-hook #'evil-normalize-keymaps)
 
 (defcustom outline-modeline-format
   '(
@@ -612,7 +613,7 @@ overlay on the hide-region-overlays \"ring\""
     ;; (imenu-list--set-mode-line)
     (insert " \t \n")
 
-    (my-outline-mode)
+    (lsp-symbol-outline-mode)
 
     (if (featurep 'evil-snipe)
      (evil-snipe-mode 0))
@@ -641,7 +642,7 @@ overlay on the hide-region-overlays \"ring\""
     (set-display-table-slot
      standard-display-table
      'selective-display
-     (let ((face-offset (* (face-id 'outline-button-face) (lsh 1 22))))
+     (let ((face-offset (* (face-id 'lsp-symbol-outline-button-face) (lsh 1 22))))
        (vconcat (mapcar (lambda (c) (+ face-offset c)) " +"))))
 
     ;; (evil-goto-first-line)
@@ -1025,9 +1026,9 @@ overlay on the hide-region-overlays \"ring\""
 ;;  (18 . "Array"))
 
 
-(add-hook 'my-outline-mode-hook
+(add-hook 'lsp-symbol-outline-mode-hook
           (lambda ()
-            (face-remap-add-relative 'default 'outline-button-face)))
+            (face-remap-add-relative 'default 'lsp-symbol-outline-button-face)))
 
 
 
@@ -1062,37 +1063,37 @@ overlay on the hide-region-overlays \"ring\""
     (cond
      ((equal (nth 1 item) 2)
       (if window-system
-          (insert (propertize " " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-        (insert (propertize "M " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+          (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+        (insert (propertize "M " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
         )
       )
      ((equal (nth 1 item) 5)  (if window-system
-                                  (insert (propertize " " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize "C " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+                                  (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+                                (insert (propertize "C " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
      ((equal (nth 1 item) 6)  (if window-system
-                                  (insert (propertize " " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize "m " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+                                  (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+                                (insert (propertize "m " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
      ((equal (nth 1 item) 12) (if window-system
-                                  (insert (propertize " " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize "F " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+                                  (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+                                (insert (propertize "F " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
      ((equal (nth 1 item) 13) (if window-system
-                                  (insert (propertize " " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize "V " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+                                  (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+                                (insert (propertize "V " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
      ((equal (nth 1 item) 14) (if window-system
-                                  (insert (propertize " " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize "K " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+                                  (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+                                (insert (propertize "K " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
      ((equal (nth 1 item) 18) (if window-system
-                                  (insert (propertize " " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize "A " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+                                  (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+                                (insert (propertize "A " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
      (t (if window-system
-            (insert (propertize " " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-          (insert (propertize "* " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+            (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+          (insert (propertize "* " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
           ))
      )
     (insert-button (car item) 'action `(lambda (x)
@@ -1108,15 +1109,15 @@ overlay on the hide-region-overlays \"ring\""
 
                    'face (cond
                           ((and (nth 6 item) (ignore-errors (not (string-empty-p (nth 6 item))))
-                                (equal (nth 1 item) 12)) 'outline-function-face-has-doc)
-                          ((equal (nth 1 item) 12) 'outline-function-face)
+                                (equal (nth 1 item) 12)) 'lsp-symbol-outline-function-face-has-doc)
+                          ((equal (nth 1 item) 12) 'lsp-symbol-outline-function-face)
                           ((and (nth 6 item) (ignore-errors (not (string-empty-p (nth 6 item))))
-                                (equal (nth 1 item) 6)) 'outline-function-face-has-doc)
-                          ((equal (nth 1 item) 6) 'outline-function-face)
+                                (equal (nth 1 item) 6)) 'lsp-symbol-outline-function-face-has-doc)
+                          ((equal (nth 1 item) 6) 'lsp-symbol-outline-function-face)
                           ((and (nth 6 item) (ignore-errors (not (string-empty-p (nth 6 item))))
-                                (equal (nth 1 item) 5)) 'outline-class-face-has-doc)
-                          ((equal (nth 1 item) 5) 'outline-class-face)
-                          (t 'outline-var-face)
+                                (equal (nth 1 item) 5)) 'lsp-symbol-outline-class-face-has-doc)
+                          ((equal (nth 1 item) 5) 'lsp-symbol-outline-class-face)
+                          (t 'lsp-symbol-outline-var-face)
                           )
 
 
@@ -1148,7 +1149,7 @@ overlay on the hide-region-overlays \"ring\""
                              (insert
                               (propertize
                                arg-string
-                               'face 'outline-arg-face 'font-lock-ignore 't))))))
+                               'face 'lsp-symbol-outline-arg-face 'font-lock-ignore 't))))))
     (insert "\n")
     )
   )
@@ -1231,7 +1232,7 @@ overlay on the hide-region-overlays \"ring\""
 
 (defun set-some-overlay-or-textproperty-here (beg end)
   (set-text-properties beg end
-                       '(face 'outline-var-face)
+                       '(face 'lsp-symbol-outline-var-face)
                        ;; '(invisible t)
                        ;; (propertize ,(buffer-substring-no-properties beg end) 'face 'font-lock-constant-face))
                        ))
@@ -1341,7 +1342,7 @@ overlay on the hide-region-overlays \"ring\""
 
 
 (face-spec-set
- 'outline-button-face
+ 'lsp-symbol-outline-button-face
  '((t :foreground "#93a0b2"
       ))
  'face-defface-spec
@@ -1368,7 +1369,7 @@ overlay on the hide-region-overlays \"ring\""
 
 (defun set-properties-vis (beg end)
   (set-text-properties beg end
-                       '(face outline-arg-face)
+                       '(face lsp-symbol-outline-arg-face)
                        ;; (propertize ,(buffer-substring-no-properties beg end) 'face 'font-lock-constant-face))
                        )
   )
@@ -1391,7 +1392,7 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-(defun my-outline-cycle-vis ()
+(defun lsp-symbol-outline-cycle-vis ()
   (interactive)
   (cond
    ((equal outline-buf-mode "js2-mode")
@@ -1546,7 +1547,7 @@ overlay on the hide-region-overlays \"ring\""
 
 (defun set-properties-vis (beg end)
   (set-text-properties beg end
-                       '(face outline-arg-face)
+                       '(face lsp-symbol-outline-arg-face)
                        ;; (propertize ,(buffer-substring-no-properties beg end) 'face 'font-lock-constant-face))
                        )
   )
@@ -1576,7 +1577,7 @@ overlay on the hide-region-overlays \"ring\""
   )
 
 
-(defun my-outline-print-fn-sorted (list)
+(defun lsp-symbol-outline-print-fn-sorted (list)
   (let ((headingt )
         (types
 
@@ -1610,37 +1611,37 @@ overlay on the hide-region-overlays \"ring\""
         (cond
      ((equal (nth 1 (car k)) 2)
       (if window-system
-          (insert (propertize "  " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-        (insert (propertize " M " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+          (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+        (insert (propertize " M " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
         )
       )
      ((equal (nth 1 (car k)) 5)  (if window-system
-                                  (insert (propertize "  " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize " C " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+                                  (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+                                (insert (propertize " C " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
      ((equal (nth 1 (car k)) 6)  (if window-system
-                                  (insert (propertize "  " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize " m " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+                                  (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+                                (insert (propertize " m " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
      ((equal (nth 1 (car k)) 12) (if window-system
-                                  (insert (propertize "  " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize " F " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+                                  (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+                                (insert (propertize " F " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
      ((equal (nth 1 (car k)) 13) (if window-system
-                                  (insert (propertize "  " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize " V " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+                                  (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+                                (insert (propertize " V " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
      ((equal (nth 1 (car k)) 14) (if window-system
-                                  (insert (propertize "  " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize " K " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+                                  (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+                                (insert (propertize " K " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
      ((equal (nth 1 (car k)) 18) (if window-system
-                                  (insert (propertize "  " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize " A " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+                                  (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+                                (insert (propertize " A " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
      (t (if window-system
-            (insert (propertize "  " 'face 'outline-atom-icons-face 'font-lock-ignore 't))
-          (insert (propertize " * " 'face 'outline-term-symbol-type-name-face 'font-lock-ignore 't))
+            (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
+          (insert (propertize " * " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
           ))
          )
 
@@ -1666,15 +1667,15 @@ overlay on the hide-region-overlays \"ring\""
 
                    'face (cond
                           ((and (nth 6 item) (ignore-errors (not (string-empty-p (nth 6 item))))
-                                (equal (nth 1 item) 12)) 'outline-function-face-has-doc)
-                          ((equal (nth 1 item) 12) 'outline-function-face)
+                                (equal (nth 1 item) 12)) 'lsp-symbol-outline-function-face-has-doc)
+                          ((equal (nth 1 item) 12) 'lsp-symbol-outline-function-face)
                           ((and (nth 6 item) (ignore-errors (not (string-empty-p (nth 6 item))))
-                                (equal (nth 1 item) 6)) 'outline-function-face-has-doc)
-                          ((equal (nth 1 item) 6) 'outline-function-face)
+                                (equal (nth 1 item) 6)) 'lsp-symbol-outline-function-face-has-doc)
+                          ((equal (nth 1 item) 6) 'lsp-symbol-outline-function-face)
                           ((and (nth 6 item) (ignore-errors (not (string-empty-p (nth 6 item))))
-                                (equal (nth 1 item) 5)) 'outline-class-face-has-doc)
-                          ((equal (nth 1 item) 5) 'outline-class-face)
-                          (t 'outline-var-face)
+                                (equal (nth 1 item) 5)) 'lsp-symbol-outline-class-face-has-doc)
+                          ((equal (nth 1 item) 5) 'lsp-symbol-outline-class-face)
+                          (t 'lsp-symbol-outline-var-face)
                           )
 
 
@@ -1703,7 +1704,7 @@ overlay on the hide-region-overlays \"ring\""
                              (insert
                               (propertize
                                arg-string
-                               'face 'outline-arg-face 'font-lock-ignore 't))))))
+                               'face 'lsp-symbol-outline-arg-face 'font-lock-ignore 't))))))
           (insert "\n")
           )
 
@@ -1722,12 +1723,12 @@ overlay on the hide-region-overlays \"ring\""
   )
 
 
-(defun my-outline-print-sorted ()
+(defun lsp-symbol-outline-print-sorted ()
 
   (setq-local outline-list-sorted (outline-sort-by-category outline-list))
   (read-only-mode 0)
   (erase-buffer)
-  (my-outline-print-fn-sorted outline-list-sorted)
+  (lsp-symbol-outline-print-fn-sorted outline-list-sorted)
 
   (evil-goto-first-line)
   (evil-forward-word-begin 1)
@@ -1739,7 +1740,7 @@ overlay on the hide-region-overlays \"ring\""
   )
 
 
-(defun my-outline-print-sequential ()
+(defun lsp-symbol-outline-print-sequential ()
 
   (let ((lk))
     (read-only-mode 0)
@@ -1766,11 +1767,11 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-(defun my-outline-toggle-sorted ()
+(defun lsp-symbol-outline-toggle-sorted ()
   (interactive)
   (if sorted
-      (my-outline-print-sequential)
-    (my-outline-print-sorted)
+      (lsp-symbol-outline-print-sequential)
+    (lsp-symbol-outline-print-sorted)
     )
   )
 
@@ -1907,28 +1908,28 @@ overlay on the hide-region-overlays \"ring\""
 ;;   ;; (profiler-stop)
 ;;   )
 
-;; (setq my-outline-mode-hook nil)
+;; (setq lsp-symbol-outline-mode-hook nil)
 
 ;; Keybindings
 
-(define-key my-outline-mode-map (kbd "j") #'outline-next-line-my)
-(define-key my-outline-mode-map (kbd "k") #'outline-previous-line)
-(define-key my-outline-mode-map (kbd "TAB") #'outline-hide-sublevels)
-(define-key my-outline-mode-map (kbd "<backtab>") #'outline-show-all)
-(define-key my-outline-mode-map (kbd "f") #'outline-toggle-folding)
-(define-key my-outline-mode-map (kbd "q") #'kill-buffer-and-window)
-(define-key my-outline-mode-map (kbd "gg") #'outline-go-top)
-(define-key my-outline-mode-map (kbd "G") #'evil-goto-line)
-(define-key my-outline-mode-map (kbd "o") #'push-button)
-(define-key my-outline-mode-map (kbd "i") #'my-outline-cycle-vis)
-(define-key my-outline-mode-map (kbd "gh") #'outline-up-scope)
-(define-key my-outline-mode-map (kbd "gk") #'outline-up-sibling)
-(define-key my-outline-mode-map (kbd "gj") #'outline-down-sibling)
-(define-key my-outline-mode-map (kbd "w") #'my-outline-widen-to-widest-column)
-(define-key my-outline-mode-map (kbd "s") #'my-outline-toggle-sorted)
-(define-key my-outline-mode-map (kbd "l") #'outline-peek)
-(define-key my-outline-mode-map (kbd "d") #'lsp-symbol-outline-show-docstring-tip)
+(define-key lsp-symbol-outline-mode-map (kbd "j") #'outline-next-line-my)
+(define-key lsp-symbol-outline-mode-map (kbd "k") #'outline-previous-line)
+(define-key lsp-symbol-outline-mode-map (kbd "TAB") #'outline-hide-sublevels)
+(define-key lsp-symbol-outline-mode-map (kbd "<backtab>") #'outline-show-all)
+(define-key lsp-symbol-outline-mode-map (kbd "f") #'outline-toggle-folding)
+(define-key lsp-symbol-outline-mode-map (kbd "q") #'kill-buffer-and-window)
+(define-key lsp-symbol-outline-mode-map (kbd "gg") #'outline-go-top)
+(define-key lsp-symbol-outline-mode-map (kbd "G") #'evil-goto-line)
+(define-key lsp-symbol-outline-mode-map (kbd "o") #'push-button)
+(define-key lsp-symbol-outline-mode-map (kbd "i") #'lsp-symbol-outline-cycle-vis)
+(define-key lsp-symbol-outline-mode-map (kbd "gh") #'outline-up-scope)
+(define-key lsp-symbol-outline-mode-map (kbd "gk") #'outline-up-sibling)
+(define-key lsp-symbol-outline-mode-map (kbd "gj") #'outline-down-sibling)
+(define-key lsp-symbol-outline-mode-map (kbd "w") #'lsp-symbol-outline-widen-to-widest-column)
+(define-key lsp-symbol-outline-mode-map (kbd "s") #'lsp-symbol-outline-toggle-sorted)
+(define-key lsp-symbol-outline-mode-map (kbd "l") #'outline-peek)
+(define-key lsp-symbol-outline-mode-map (kbd "d") #'lsp-symbol-outline-show-docstring-tip)
 
-(set-face-attribute 'outline-button-face nil :foreground "#93a0b2")
+(set-face-attribute 'lsp-symbol-outline-button-face nil :foreground "#93a0b2")
 
 (provide 'lsp-symbol-outline)
