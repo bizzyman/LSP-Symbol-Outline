@@ -586,11 +586,11 @@ overlay on the hide-region-overlays \"ring\""
 
          ;; Caching
 
-         ;; (if (and (boundp 'buffer-hash-value) (equal buffer-hash-value (md5 (buffer-substring-no-properties (point-min) (point-max)) )))
-         ;;     buffer-orig-outline-list
-         ;;   (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0))
+         (if (and (boundp 'buffer-hash-value) (equal buffer-hash-value (md5 (buffer-substring-no-properties (point-min) (point-max)) )))
+             buffer-orig-outline-list
+           (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0))
 
-         (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0)
+         ;; (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0)
          )
 
         (mod major-mode)
