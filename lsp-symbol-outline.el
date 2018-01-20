@@ -33,8 +33,23 @@
 (setq hide-region-overlays nil)
 (setq lsp-symbol-outline-window-position 'right)
 
+(defcustom lsp-symbol-outline-modeline-format
+  '(
+    (:propertize "%b" face mode-line-buffer-id) " "
+    )
+  "Local modeline format for the LSP symbol outline mode."
+  :group 'lsp-symbol-outline)
+
+
 
 ;; faces
+
+(face-spec-set
+ 'lsp-symbol-outline-button-face
+ '((t :foreground "#93a0b2"
+      ))
+ 'face-defface-spec
+ )
 
 (defface outline-button-face
   '((t
@@ -200,34 +215,34 @@
 
 
 
-(defun outline-create-buffer ()
+(defun lsp-symbol-outline-create-buffer ()
   (get-buffer-create (format "*%s-outline*" (file-name-sans-extension (buffer-name))))
   )
 
-;; (push '(text-mode "\\s-*\\ " "\\s-*\\ " "\\b\\B" outline-forward-sexp nil)
+;; (push '(text-mode "\\s-*\\ " "\\s-*\\ " "\\b\\B" lsp-symbol-outline-forward-sexp nil)
 ;;       hs-special-modes-alist)
 
 ;; (push `(imenu-list-major-mode "\\s-*\\+ " "\\s-*\\+ " "\\b\\B" imenu-list-forward-sexp nil)
 ;;       hs-special-modes-alist)
 
-(defun outline-unfold-all ()
+(defun lsp-symbol-outline-unfold-all ()
   (interactive)
   (save-excursion
     (evil-goto-first-line)
     (while (not (eobp))
-      (outline-unfold-at-point)
+      (lsp-symbol-outline-unfold-at-point)
       (forward-line 1)
       )
     )
   )
 
 
-;; (defun outline-fold-all ()
+;; (defun lsp-symbol-outline-fold-all ()
 ;;   (interactive)
 ;;   (save-excursion
 ;;     (evil-goto-first-line)
 ;;     (while (not (eobp))
-;;       (if (outline-fold-form-at-point-internal)
+;;       (if (lsp-symbol-lsp-symbol-outline-fold-form-at-point-internal)
 ;;           (vertical-motion 1)
 ;;         (forward-line 1)
 ;;           )
@@ -237,7 +252,7 @@
 ;;   (evil-forward-word-begin)
 ;;   )
 
-(defun outline-fold-form-at-point-internal ()
+(defun lsp-symbol-lsp-symbol-outline-fold-form-at-point-internal ()
   (save-excursion
     (if (not (equal (current-indentation) (save-excursion (forward-line 1) (current-indentation))))
         (progn
@@ -245,7 +260,7 @@
           (end-of-line)
           ;; (set-mark-command (point))
           (evil-visual-char)
-          ;; (outline-forward-sexp)
+          ;; (lsp-symbol-outline-forward-sexp)
 
           (let ((indent (current-indentation)))
             (forward-line 1)
@@ -267,24 +282,24 @@
   )
 
 
-(defun outline-up-scope ()
+(defun lsp-symbol-outline-up-scope ()
   (interactive)
   (outline-up-heading 1 nil)
   (evil-forward-WORD-begin 2)
   )
 
-(defun outline-up-sibling ()
+(defun lsp-symbol-outline-up-sibling ()
   (interactive)
   (let ((indent (current-indentation)))
-    (outline-previous-line)
+    (lsp-symbol-outline-previous-line)
     (while (and (not (equal (current-indentation) indent) ) (not (eobp)))
-      (outline-previous-line)
+      (lsp-symbol-outline-previous-line)
       )
     )
   )
 
 
-(defun outline-down-sibling ()
+(defun lsp-symbol-outline-down-sibling ()
   (interactive)
   (let ((indent (current-indentation)))
     (outline-next-line)
@@ -296,22 +311,22 @@
 
 
 
-(defun outline-fold-all ()
+(defun lsp-symbol-outline-fold-all ()
   (interactive)
   (evil-goto-line)
   (vertical-motion -1)
   (while (not (equal (string-to-number (format-mode-line "%l")) 1))
-    (outline-fold-form-at-point)
+    (lsp-symbol-outline-fold-form-at-point)
     (vertical-motion -1)
 
     )
   (evil-beginning-of-line)
   (evil-forward-word-begin)
-  (outline-fold-form-at-point)
+  (lsp-symbol-outline-fold-form-at-point)
   )
 
 
-(defun randomlol ()
+(defun lsp-symbol-outline-find-indent ()
   (let ((indent (current-indentation)))
     (save-excursion
       (vertical-motion 1)
@@ -323,13 +338,13 @@
   )
 
 
-(defun outline-hide-region-hide ()
+(defun lsp-symbol-outline-hide-region-hide ()
   "Hides a region by making an invisible overlay over it and save the
 overlay on the hide-region-overlays \"ring\""
   ;; (interactive)
   (let ((new-overlay (make-overlay
                       (line-end-position)
-                      (1- (randomlol))
+                      (1- (lsp-symbol-outline-find-indent))
 
                       ;; (1- scope)
                       ;; (- (progn (if
@@ -371,7 +386,7 @@ overlay on the hide-region-overlays \"ring\""
     ;; (ov-at )
 
     ;; (-map (lambda (x) (-contains? (ov-prop x) 'before-string) ) (ov-in (line-beginning-position) (1+ scope)))
-    ;; (if (-first (lambda (x) (-contains? (ov-prop x) 'before-string) ) (ov-in (line-beginning-position) (randomlol)))
+    ;; (if (-first (lambda (x) (-contains? (ov-prop x) 'before-string) ) (ov-in (line-beginning-position) (lsp-symbol-outline-find-indent)))
     ;;     nil
     ;;   (overlay-put new-overlay 'before-string
     ;;                (propertize (format " +" 0 2 'face 'default))
@@ -388,12 +403,12 @@ overlay on the hide-region-overlays \"ring\""
 ;; (setq outline-regexp "\\ +")
 
 
-(defun outline-fold-at-point-no-children ()
+(defun lsp-symbol-outline-fold-at-point-no-children ()
   (interactive)
   ;; (profiler-start 'cpu)
   (save-excursion
     (if (not (>= (current-indentation) (save-excursion (forward-line 1) (current-indentation))))
-        (let ((current-line (string-to-number (format-mode-line "%l"))) (scope-end (randomlol)))
+        (let ((current-line (string-to-number (format-mode-line "%l"))) (scope-end (lsp-symbol-outline-find-indent)))
           (progn
             (goto-char scope-end
                        ;; (if
@@ -419,11 +434,11 @@ overlay on the hide-region-overlays \"ring\""
               ;; (evil-beginning-of-line)
               (vertical-motion -1)
               (end-of-line)
-              (outline-fold-form-at-point)
+              (lsp-symbol-outline-fold-form-at-point)
               )
 
             ;; (hide-region-hide)
-            ;; (outline-fold-form-at-point)
+            ;; (lsp-symbol-outline-fold-form-at-point)
             ;; (evil-normal-state)
             ;; (message "folding..")
             ))
@@ -438,12 +453,12 @@ overlay on the hide-region-overlays \"ring\""
 ;; 19.332581
 
 
-(defun outline-fold-form-at-point ()
+(defun lsp-symbol-outline-fold-form-at-point ()
   (interactive)
   (save-excursion
     (if (not (>= (current-indentation) (save-excursion (forward-line 1) (current-indentation))))
         (progn
-          (outline-hide-region-hide)
+          (lsp-symbol-outline-hide-region-hide)
           ;; (evil-normal-state)
           (message "folding..")
           )
@@ -456,14 +471,14 @@ overlay on the hide-region-overlays \"ring\""
 ;; (ov-clear 'intangible t (point) (save-excursion (forward-line 1) (point)))
 
 
-(defun outline-unfold-at-point ()
+(defun lsp-symbol-outline-unfold-at-point ()
   (interactive)
   (ov-clear 'invisible t (point) (save-excursion (forward-line 1) (point)))
   (ov-clear 'intangible t (point) (save-excursion (forward-line 1) (point)))
   (message "unfolding")
   )
 
-(defun outline-forward-sexp ()
+(defun lsp-symbol-outline-forward-sexp ()
   (interactive)
   (let ((indent (current-indentation)))
     (forward-line 1)
@@ -478,7 +493,7 @@ overlay on the hide-region-overlays \"ring\""
   )
 
 
-(defun outline-previous-line ()
+(defun lsp-symbol-outline-previous-line ()
   (interactive)
   (evil-previous-line)
   ;; (forward-line -1)
@@ -495,7 +510,7 @@ overlay on the hide-region-overlays \"ring\""
   )
 
 
-(defun outline-next-line-my ()
+(defun lsp-symbol-outline-next-line-my ()
   (interactive)
   ;; (forward-line 1)
   ;; (evil-next-visual-line)
@@ -512,7 +527,7 @@ overlay on the hide-region-overlays \"ring\""
 
 ;; (looking-at-p " *[^ ] ")
 
-(defun outline-overlay-at-point-p ()
+(defun lsp-symbol-outline-overlay-at-point-p ()
   (ov-in 'invisible t (point) (save-excursion (forward-line 1) (point)))
   )
 
@@ -525,13 +540,13 @@ overlay on the hide-region-overlays \"ring\""
 
 ;; (add-hook 'lsp-symbol-outline-mode-hook '(lambda () (toggle-truncate-lines 1) (setq truncate-lines 1) (spacemacs/toggle-truncate-lines-on) (spacemacs/toggle-visual-line-navigation-off)))
 
-(defun outline-toggle-folding ()
+(defun lsp-symbol-outline-toggle-folding ()
   (interactive)
   (outline-cycle)
   (evil-forward-word-begin 2)
   )
 
-(defun outline-go-top ()
+(defun lsp-symbol-outline-go-top ()
   (interactive)
   (evil-goto-first-line)
   (evil-forward-word-begin)
@@ -543,7 +558,7 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-(defun outline-peek ()
+(defun lsp-symbol-outline-peek ()
   (interactive)
   (let (;; (w (window-numbering-get-number))
         (w (selected-window))
@@ -558,15 +573,8 @@ overlay on the hide-region-overlays \"ring\""
 (evil-make-overriding-map lsp-symbol-outline-mode-map 'normal)
 (add-hook 'lsp-symbol-outline-mode-hook #'evil-normalize-keymaps)
 
-(defcustom outline-modeline-format
-  '(
-    (:propertize "%b" face mode-line-buffer-id) " "
-    )
-  "Local modeline format for the LSP symbol outline mode."
-  :group 'lsp-symbol-outline)
 
-
-(defun outline-create-buffer-window ()
+(defun lsp-symbol-outline-create-buffer-window ()
   (interactive)
   (if (not lsp-mode)
       (lsp-mode)
@@ -579,9 +587,9 @@ overlay on the hide-region-overlays \"ring\""
 
          ;; (if (and (boundp 'buffer-hash-value) (equal buffer-hash-value (md5 (buffer-substring-no-properties (point-min) (point-max)) )))
          ;;     buffer-orig-outline-list
-         ;;   (outline-tree-sort (outline-sort-list (outline-get-symbols-list)) 0))
+         ;;   (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0))
 
-         (outline-tree-sort (outline-sort-list (outline-get-symbols-list)) 0)
+         (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0)
          )
 
         (mod major-mode)
@@ -591,7 +599,7 @@ overlay on the hide-region-overlays \"ring\""
                                 (selected-window)
                                 (- 0
                                    (/ (frame-width) 6)) lsp-symbol-outline-window-position)))
-        (outline-buffer (outline-create-buffer))
+        (outline-buffer (lsp-symbol-outline-create-buffer))
         )
 
     (setq-local buffer-orig-outline-list outline-list)
@@ -605,9 +613,9 @@ overlay on the hide-region-overlays \"ring\""
     (erase-buffer)
 
     (setq-local outline-buf-mode (symbol-name mod))
-    (outline-print-outline outline-list buf)
+    (lsp-symbol-outline-print-outline outline-list buf)
 
-    (source-to-final)
+    (lsp-symbol-outline-source-to-final)
 
 
     ;; (imenu-list--set-mode-line)
@@ -647,7 +655,7 @@ overlay on the hide-region-overlays \"ring\""
 
     ;; (evil-goto-first-line)
     ;; (evil-forward-word-begin)
-    (goto-line (outline-find-closest-cell outline-list current-line))
+    (goto-line (lsp-symbol-outline-find-closest-cell outline-list current-line))
     (if (not (looking-at-p " *[^ ] "))
         (evil-forward-word-begin 1)
       (evil-forward-word-begin 2)
@@ -658,11 +666,11 @@ overlay on the hide-region-overlays \"ring\""
   )
 
 
-(defun outline-find-closest-cell (list current-line)
+(defun lsp-symbol-outline-find-closest-cell (list current-line)
   (1+ (cond ((progn (-elem-index (car (last (-filter (lambda (x) (< (nth 2 x) current-line)) list))) list))) (t 0)))
   )
 
-(defun outline-lsp-get-document-symbols ()
+(defun lsp-symbol-outline-lsp-get-document-symbols ()
   (lsp--send-request
    (lsp--make-request "textDocument/documentSymbol"
                       `(:textDocument ,(lsp--text-document-identifier)))))
@@ -683,7 +691,7 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-(defun outline-tern ()
+(defun lsp-symbol-outline-tern ()
   (let ((opening-paren 21797))
     (tern-run-query (lambda (data)
                       (let ((type (tern-parse-function-type data)))
@@ -700,7 +708,7 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-(defun my-tern-update-argument-hints (pos)
+(defun lsp-symbol-outline-tern-update-argument-hints (pos)
   (let ( ll)
     (tern-run-query (lambda (data)
                       (let ((type (tern-parse-function-type data)))
@@ -708,7 +716,7 @@ overlay on the hide-region-overlays \"ring\""
                           (setf tern-last-argument-hints (cons pos type))
                           (if data
                               (progn
-                                (setq ll (my-tern-show-argument-hints))
+                                (setq ll (lsp-symbol-outline-tern-show-argument-hints))
                                 (if (not ll)
                                     (cl-destructuring-bind (name args ret) data
                                       (setq ll args)
@@ -732,7 +740,7 @@ overlay on the hide-region-overlays \"ring\""
 
   )
 
-(defun my-tern-show-argument-hints ()
+(defun lsp-symbol-outline-tern-show-argument-hints ()
   (cl-destructuring-bind (paren . type) tern-last-argument-hints
     (let ((parts ()) aaa
           (current-arg (tern-find-current-arg paren)))
@@ -762,10 +770,10 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-(defun outline-get-symbols-list ()
+(defun lsp-symbol-outline-get-symbols-list ()
   ;; get name, kind, line and character info
   (let ((agg-items ) (index 1))
-    (dolist (item (outline-lsp-get-document-symbols))
+    (dolist (item (lsp-symbol-outline-lsp-get-document-symbols))
       ;; (message "%s" (princ item))
       (let ((ind-item ) )
 
@@ -1043,7 +1051,7 @@ overlay on the hide-region-overlays \"ring\""
     )
   )
 
-(defun outline-print-outline (list buf)
+(defun lsp-symbol-outline-print-outline (list buf)
   (dolist (item list)
     ;;   (and
     ;;    (save-excursion
@@ -1164,7 +1172,7 @@ overlay on the hide-region-overlays \"ring\""
 
 ;; non-html
 
-(defun source-to-final ()
+(defun lsp-symbol-outline-source-to-final ()
   "Cut refs from the txt, but letting them appear as text properties."
   (interactive)
   (save-excursion
@@ -1172,7 +1180,7 @@ overlay on the hide-region-overlays \"ring\""
     (while (re-search-forward ":" nil 'noerror 1)
       ;; (kill-word -1)
       (let ((ref (match-string-no-properties 1)))
-        (set-some-overlay-or-textproperty-here (1- (point))
+        (lsp-symbol-outline-set-some-overlay-or-textproperty-here (1- (point))
 
                                                (cond
                                                 ((looking-at " fn")
@@ -1230,7 +1238,7 @@ overlay on the hide-region-overlays \"ring\""
 
 ;; (replace-regexp-in-string ": [^ )\\|]+" "" lk )
 
-(defun set-some-overlay-or-textproperty-here (beg end)
+(defun lsp-symbol-outline-set-some-overlay-or-textproperty-here (beg end)
   (set-text-properties beg end
                        '(face 'lsp-symbol-outline-var-face)
                        ;; '(invisible t)
@@ -1239,7 +1247,7 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-(defun set-arg-types-inv ()
+(defun lsp-symbol-outline-set-arg-types-inv ()
   "Cut refs from the txt, but letting them appear as text properties."
   (interactive)
   (save-excursion
@@ -1247,7 +1255,7 @@ overlay on the hide-region-overlays \"ring\""
     (while (re-search-forward ":" nil 'noerror 1)
       ;; (kill-word -1)
       (let ((ref (match-string-no-properties 1)))
-        (set-arg-textproperty-inv (1- (point))
+        (lsp-symbol-outline-set-arg-textproperty-inv (1- (point))
 
                                   (cond
                                    ((looking-at " fn")
@@ -1306,7 +1314,7 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-;; (defun set-arg-types-inv ()
+;; (defun lsp-symbol-outline-set-arg-types-inv ()
 ;;   "Cut refs from the txt, but letting them appear as text properties."
 ;;   (interactive)
 ;;   (save-excursion
@@ -1314,7 +1322,7 @@ overlay on the hide-region-overlays \"ring\""
 ;;     (while (re-search-forward ": \\([^ )]+\\)" nil 'noerror 1)
 ;;       ;; (kill-word -1)
 ;;       (let ((ref (match-string-no-properties 1)))
-;;         (set-arg-textproperty-inv (cond
+;;         (lsp-symbol-outline-set-arg-textproperty-inv (cond
 ;;                                    ((looking-back "{}" 2) (point))
 ;;                                    ((looking-back "}" 1) (1- (point)))
 ;;                                    ((looking-at ")") (point))
@@ -1328,7 +1336,7 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-(defun set-arg-textproperty-inv (beg end)
+(defun lsp-symbol-outline-set-arg-textproperty-inv (beg end)
   ;; (let ((ovv (make-overlay beg end )))
 
   ;; (overlay-put ovv 'invisible t)
@@ -1341,15 +1349,8 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-(face-spec-set
- 'lsp-symbol-outline-button-face
- '((t :foreground "#93a0b2"
-      ))
- 'face-defface-spec
- )
 
-
-(defun set-info-vis ()
+(defun lsp-symbol-outline-set-info-vis ()
   "Cut refs from the txt, but letting them appear as text properties."
   (interactive)
   (save-excursion
@@ -1357,7 +1358,7 @@ overlay on the hide-region-overlays \"ring\""
     (while (re-search-forward "(.+)" nil 'noerror 1)
       ;; (kill-word -1)
       (let ((ref (match-string-no-properties 1)))
-        (set-properties-vis (point)
+        (lsp-symbol-outline-set-properties-vis (point)
                             (save-excursion
                               ;; (search-backward "(" nil t 1)
                               (evil-jump-item)
@@ -1367,7 +1368,7 @@ overlay on the hide-region-overlays \"ring\""
         ))))
 
 
-(defun set-properties-vis (beg end)
+(defun lsp-symbol-outline-set-properties-vis (beg end)
   (set-text-properties beg end
                        '(face lsp-symbol-outline-arg-face)
                        ;; (propertize ,(buffer-substring-no-properties beg end) 'face 'font-lock-constant-face))
@@ -1376,14 +1377,14 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-(defun set-info-inv ()
+(defun lsp-symbol-outline-set-info-inv ()
   "Cut refs from the txt, but letting them appear as text properties."
   (interactive)
   (save-excursion
     (goto-char (point-min))
     (while (re-search-forward "(.*)" nil 'noerror 1)
       ;; (kill-word -1)
-      (set-arg-textproperty-inv (point)
+      (lsp-symbol-outline-set-arg-textproperty-inv (point)
                                 (save-excursion
                                   ;; (re-search-backward "(" nil t )
                                   (evil-jump-item)
@@ -1399,14 +1400,14 @@ overlay on the hide-region-overlays \"ring\""
     (cond
      ((equal inv 0)
       (read-only-mode 0)
-      (set-arg-types-inv)
+      (lsp-symbol-outline-set-arg-types-inv)
       (setq-local inv 1)
       (read-only-mode 1)
       )
 
      ((equal inv 1)
       (read-only-mode 0)
-      (set-info-inv)
+      (lsp-symbol-outline-set-info-inv)
       (setq-local inv 2)
       (read-only-mode 1)
       )
@@ -1415,8 +1416,8 @@ overlay on the hide-region-overlays \"ring\""
       (read-only-mode 0)
       (progn
         (remove-list-of-text-properties (point-min) (point-max) '(invisible ))
-        (set-info-vis)
-        (source-to-final)
+        (lsp-symbol-outline-set-info-vis)
+        (lsp-symbol-outline-source-to-final)
         )
       (setq-local inv 0)
       (read-only-mode 1)
@@ -1427,7 +1428,7 @@ overlay on the hide-region-overlays \"ring\""
     (cond
      ((equal inv 0)
       (read-only-mode 0)
-      (set-info-inv)
+      (lsp-symbol-outline-set-info-inv)
       (setq-local inv 1)
       (read-only-mode 1)
       )
@@ -1436,8 +1437,8 @@ overlay on the hide-region-overlays \"ring\""
       (read-only-mode 0)
       (progn
         (remove-list-of-text-properties (point-min) (point-max) '(invisible ))
-        (set-info-vis)
-        (source-to-final)
+        (lsp-symbol-outline-set-info-vis)
+        (lsp-symbol-outline-source-to-final)
         )
       (setq-local inv 0)
       (read-only-mode 1)
@@ -1448,14 +1449,14 @@ overlay on the hide-region-overlays \"ring\""
     (cond
      ((equal inv 0)
       (read-only-mode 0)
-      (set-classes-inv)
+      (lsp-symbol-outline-set-classes-inv)
       (setq-local inv 1)
       (read-only-mode 1)
       )
 
      ((equal inv 1)
       (read-only-mode 0)
-      (set-html-info-inv)
+      (lsp-symbol-outline-set-html-info-inv)
       (setq-local inv 2)
       (read-only-mode 1)
       )
@@ -1464,8 +1465,8 @@ overlay on the hide-region-overlays \"ring\""
       (read-only-mode 0)
       (progn
         (remove-list-of-text-properties (point-min) (point-max) '(invisible ))
-        (set-html-info-vis)
-        (set-classes-normal)
+        (lsp-symbol-outline-set-html-info-vis)
+        (lsp-symbol-outline-set-classes-normal)
         )
       (setq-local inv 0)
       (read-only-mode 1)
@@ -1479,7 +1480,7 @@ overlay on the hide-region-overlays \"ring\""
 ;; HTML
 
 
-(defun set-classes-normal ()
+(defun lsp-symbol-outline-set-classes-normal ()
   "Cut refs from the txt, but letting them appear as text properties."
   (interactive)
   (save-excursion
@@ -1487,7 +1488,7 @@ overlay on the hide-region-overlays \"ring\""
     (while (re-search-forward "\\..+$" nil 'noerror 1)
       ;; (kill-word -1)
       (let ((ref (match-string-no-properties 1)))
-        (set-classes-textprop-normal (point)
+        (lsp-symbol-outline-set-classes-textprop-normal (point)
                                      (save-excursion
                                        (search-backward "#" nil t)
                                        (re-search-forward "\\." nil t)
@@ -1497,13 +1498,13 @@ overlay on the hide-region-overlays \"ring\""
         ))))
 
 
-(defun set-classes-textprop-normal  (beg end)
+(defun lsp-symbol-outline-set-classes-textprop-normal  (beg end)
   (set-text-properties beg end
                        '(face font-lock-constant-face)
                        )
   )
 
-(defun set-classes-inv ()
+(defun lsp-symbol-outline-set-classes-inv ()
   "Cut refs from the txt, but letting them appear as text properties."
   (interactive)
   (save-excursion
@@ -1511,7 +1512,7 @@ overlay on the hide-region-overlays \"ring\""
     (while (re-search-forward "\\..+$" nil 'noerror 1)
       ;; (kill-word -1)
       (let ((ref (match-string-no-properties 1)))
-        (set-classes-textprop-inv (point)
+        (lsp-symbol-outline-set-classes-textprop-inv (point)
                                   (save-excursion
                                     (search-backward "" nil t)
                                     (re-search-forward "\\." nil t)
@@ -1521,7 +1522,7 @@ overlay on the hide-region-overlays \"ring\""
         ))))
 
 
-(defun set-classes-textprop-inv  (beg end)
+(defun lsp-symbol-outline-set-classes-textprop-inv  (beg end)
   (set-text-properties beg end
                        '(invisible t)
                        )
@@ -1530,7 +1531,7 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-(defun set-html-info-vis ()
+(defun lsp-symbol-outline-set-html-info-vis ()
   "Cut refs from the txt, but letting them appear as text properties."
   (interactive)
   (save-excursion
@@ -1538,14 +1539,14 @@ overlay on the hide-region-overlays \"ring\""
     (while (re-search-forward "#.+$" nil 'noerror 1)
       ;; (kill-word -1)
       (let ((ref (match-string-no-properties 1)))
-        (set-properties-vis (point)
+        (lsp-symbol-outline-set-properties-vis (point)
                             (save-excursion (search-backward "#" nil t 1) (point))
                             )
 
         ))))
 
 
-(defun set-properties-vis (beg end)
+(defun lsp-symbol-outline-set-properties-vis (beg end)
   (set-text-properties beg end
                        '(face lsp-symbol-outline-arg-face)
                        ;; (propertize ,(buffer-substring-no-properties beg end) 'face 'font-lock-constant-face))
@@ -1554,7 +1555,7 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-(defun set-html-info-inv ()
+(defun lsp-symbol-outline-set-html-info-inv ()
   "Cut refs from the txt, but letting them appear as text properties."
   (interactive)
   (save-excursion
@@ -1562,7 +1563,7 @@ overlay on the hide-region-overlays \"ring\""
     (while (re-search-forward "#.+$" nil 'noerror 1)
       ;; (kill-word -1)
       (let ((ref (match-string-no-properties 1)))
-        (set-arg-textproperty-inv (point)
+        (lsp-symbol-outline-set-arg-textproperty-inv (point)
                                   (save-excursion (search-backward "#" nil t 1) (point))
                                   )
 
@@ -1570,7 +1571,7 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-(defun outline-sort-by-category (list )
+(defun lsp-symbol-outline-sort-by-category (list )
 
   (--sort (< (nth 1 it) (nth 1 other)) list)
 
@@ -1725,7 +1726,7 @@ overlay on the hide-region-overlays \"ring\""
 
 (defun lsp-symbol-outline-print-sorted ()
 
-  (setq-local outline-list-sorted (outline-sort-by-category outline-list))
+  (setq-local outline-list-sorted (lsp-symbol-outline-sort-by-category outline-list))
   (read-only-mode 0)
   (erase-buffer)
   (lsp-symbol-outline-print-fn-sorted outline-list-sorted)
@@ -1733,7 +1734,7 @@ overlay on the hide-region-overlays \"ring\""
   (evil-goto-first-line)
   (evil-forward-word-begin 1)
 
-  (source-to-final)
+  (lsp-symbol-outline-source-to-final)
   (setq-local sorted t)
   (read-only-mode 1)
 
@@ -1746,7 +1747,7 @@ overlay on the hide-region-overlays \"ring\""
     (read-only-mode 0)
     (erase-buffer)
 
-    (outline-print-outline outline-list orig-buffer)
+    (lsp-symbol-outline-print-outline outline-list orig-buffer)
 
     (with-current-buffer orig-buffer
       (if (equal major-mode 'js2-mode)
@@ -1755,11 +1756,11 @@ overlay on the hide-region-overlays \"ring\""
       )
 
     (if lk
-        (source-to-final)
+        (lsp-symbol-outline-source-to-final)
       )
 
     (setq-local sorted nil)
-    (outline-go-top)
+    (lsp-symbol-outline-go-top)
 
     (read-only-mode 1)
     )
@@ -1780,7 +1781,7 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-(defun outline-tree-sort (list start)
+(defun lsp-symbol-outline-tree-sort (list start)
   (let ((split 0) (indices ))
     ;; is next cell's end line less than current cells? yes cont; no increment start, break
 
@@ -1864,14 +1865,14 @@ overlay on the hide-region-overlays \"ring\""
                     )
                   )
 
-            ;; call outline-tree-sort with start set to start+1
-            (outline-tree-sort list (1+ start))
+            ;; call lsp-symbol-outline-tree-sort with start set to start+1
+            (lsp-symbol-outline-tree-sort list (1+ start))
 
             )
-        ;; call outline-tree-sort with new start
+        ;; call lsp-symbol-outline-tree-sort with new start
         (if (eq (nth 3 (nth (1+ start) list)) nil)
             list
-          (outline-tree-sort list (1+ start))
+          (lsp-symbol-outline-tree-sort list (1+ start))
           )
         )
       )
@@ -1881,7 +1882,7 @@ overlay on the hide-region-overlays \"ring\""
 
 
 
-(defun outline-sort-list (list)
+(defun lsp-symbol-outline-sort-list (list)
   (--sort (< (nth 2 it) (nth 2 other))  list))
 
 
@@ -1900,7 +1901,7 @@ overlay on the hide-region-overlays \"ring\""
 ;;   ;; (profiler-start 'cpu)
 ;;   (cond ((or (equal major-mode 'python-mode) (equal major-mode 'js2-mode)
 ;;              (equal major-mode 'typescript-mode) (equal major-mode 'java-mode))
-;;          (outline-create-buffer-window))
+;;          (lsp-symbol-outline-create-buffer-window))
 ;;         ((equal major-mode 'web-mode) (outline-create-html-window))
 ;;         (t (imenu-list-minor-mode))
 ;;         )
@@ -1912,22 +1913,22 @@ overlay on the hide-region-overlays \"ring\""
 
 ;; Keybindings
 
-(define-key lsp-symbol-outline-mode-map (kbd "j") #'outline-next-line-my)
-(define-key lsp-symbol-outline-mode-map (kbd "k") #'outline-previous-line)
+(define-key lsp-symbol-outline-mode-map (kbd "j") #'lsp-symbol-outline-next-line-my)
+(define-key lsp-symbol-outline-mode-map (kbd "k") #'lsp-symbol-outline-previous-line)
 (define-key lsp-symbol-outline-mode-map (kbd "TAB") #'outline-hide-sublevels)
 (define-key lsp-symbol-outline-mode-map (kbd "<backtab>") #'outline-show-all)
-(define-key lsp-symbol-outline-mode-map (kbd "f") #'outline-toggle-folding)
+(define-key lsp-symbol-outline-mode-map (kbd "f") #'lsp-symbol-outline-toggle-folding)
 (define-key lsp-symbol-outline-mode-map (kbd "q") #'kill-buffer-and-window)
-(define-key lsp-symbol-outline-mode-map (kbd "gg") #'outline-go-top)
+(define-key lsp-symbol-outline-mode-map (kbd "gg") #'lsp-symbol-outline-go-top)
 (define-key lsp-symbol-outline-mode-map (kbd "G") #'evil-goto-line)
 (define-key lsp-symbol-outline-mode-map (kbd "o") #'push-button)
 (define-key lsp-symbol-outline-mode-map (kbd "i") #'lsp-symbol-outline-cycle-vis)
-(define-key lsp-symbol-outline-mode-map (kbd "gh") #'outline-up-scope)
-(define-key lsp-symbol-outline-mode-map (kbd "gk") #'outline-up-sibling)
-(define-key lsp-symbol-outline-mode-map (kbd "gj") #'outline-down-sibling)
+(define-key lsp-symbol-outline-mode-map (kbd "gh") #'lsp-symbol-outline-up-scope)
+(define-key lsp-symbol-outline-mode-map (kbd "gk") #'lsp-symbol-outline-up-sibling)
+(define-key lsp-symbol-outline-mode-map (kbd "gj") #'lsp-symbol-outline-down-sibling)
 (define-key lsp-symbol-outline-mode-map (kbd "w") #'lsp-symbol-outline-widen-to-widest-column)
 (define-key lsp-symbol-outline-mode-map (kbd "s") #'lsp-symbol-outline-toggle-sorted)
-(define-key lsp-symbol-outline-mode-map (kbd "l") #'outline-peek)
+(define-key lsp-symbol-outline-mode-map (kbd "l") #'lsp-symbol-outline-peek)
 (define-key lsp-symbol-outline-mode-map (kbd "d") #'lsp-symbol-outline-show-docstring-tip)
 
 (set-face-attribute 'lsp-symbol-outline-button-face nil :foreground "#93a0b2")
