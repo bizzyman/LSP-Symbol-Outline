@@ -2,25 +2,24 @@
 
 (require 'lsp-mode)
 (require 'ov)
-(require 'hide-region)
 (require 'request)
 (require 'outline-magic)
 (require 's)
 (require 'dash)
 (require 'tern)
 (require 'misc-cmds)
-
-(require 'evil)
-
 (require 'outline)
 (require 'sgml-mode)
 
-;; (require 'pos-tip)
+(require 'evil)
+
 
 ;; vars
 
-(setq hide-region-overlays nil)
-(setq lsp-symbol-outline-window-position 'right)
+(defcustom lsp-symbol-outline-window-position
+  'right
+  "LSP symbol outline window position."
+  :group 'lsp-symbol-outline)
 
 (defcustom lsp-symbol-outline-modeline-format
   '(
@@ -28,8 +27,6 @@
     )
   "Local modeline format for the LSP symbol outline mode."
   :group 'lsp-symbol-outline)
-
-
 
 ;; faces
 
@@ -242,34 +239,6 @@
 ;;   (evil-forward-word-begin)
 ;;   )
 
-(defun lsp-symbol-lsp-symbol-outline-fold-form-at-point-internal ()
-  (save-excursion
-    (if (not (equal (current-indentation) (save-excursion (forward-line 1) (current-indentation))))
-        (progn
-          (evil-emacs-state)
-          (end-of-line)
-          ;; (set-mark-command (point))
-          (evil-visual-char)
-          ;; (lsp-symbol-outline-forward-sexp)
-
-          (let ((indent (current-indentation)))
-            (forward-line 1)
-            (while (and (> (current-indentation) indent) (not (eobp)))
-              (forward-line 1)
-              (end-of-line)
-              )
-            (forward-line -1)
-            (end-of-line)
-
-            )
-
-          (hide-region-hide)
-          (evil-normal-state)
-          t
-          )
-      )
-    )
-  )
 
 
 (defun lsp-symbol-outline-up-scope ()
@@ -328,67 +297,6 @@
   )
 
 
-(defun lsp-symbol-outline-hide-region-hide ()
-  "Hides a region by making an invisible overlay over it and save the
-overlay on the hide-region-overlays \"ring\""
-  ;; (interactive)
-  (let ((new-overlay (make-overlay
-                      (line-end-position)
-                      (1- (lsp-symbol-outline-find-indent))
-
-                      ;; (1- scope)
-                      ;; (- (progn (if
-                      ;;            (re-search-forward
-                      ;;             (format "^%s[^ ]"
-                      ;;                    ;; (make-string (current-indentation)  32)
-                      ;;                     ;; (apply 'concat (make-list (1- (current-indentation)) "[- .[:alnum:]]"))
-                      ;;                    ;; (re-search-forward "^.?.?.?.?.?.?.?.?.?.?.?.?.?.?.?.?.?.?.?[[:alnum:] \n]+$")
-                      ;;                    (s-repeat (current-indentation) "\\( \\|[^ ]\\)")
-                      ;;                     ;; (re-search-forward "^[^                    ]")
-                      ;;                    ;; "^\\([- .[:alnum:]]\\)?"
-                      ;;                    )
-                      ;;            nil t 1 )
-                      ;;               ;; (line-beginning-position)
-                      ;;               (progn
-                      ;;                 ;; (1- (point))
-                      ;;                 (backward-char 2)
-                      ;;                 (line-beginning-position)
-                      ;;                 )
-                      ;;             ;; (save-excursion
-                      ;;             ;;   (move-beginning-of-line nil) (point)
-                      ;;             ;;   )
-                      ;;             (point-max)
-                      ;;             )
-                      ;;           )
-                      ;;    ;; (+ 2 (current-indentation))
-                      ;;    1
-                      ;;    )
-                      ))
-        )
-    (push new-overlay hide-region-overlays)
-    (overlay-put new-overlay 'invisible t)
-    (overlay-put new-overlay 'intangible t)
-    ;; (ov-clear 'face 'default (line-beginning-position) (save-excursion (forward-line 1) (point)))
-    ;; (ov-in 'after-string 'any (line-beginning-position) (line-end-position))
-    ;; (equal (car (ov-prop (ov-at))) 'before-string)
-    ;; (ov-in (line-beginning-position) (line-end-position))
-    ;; (ov-in 'face 'any (point-min) (point-max))
-    ;; (ov-at )
-
-    ;; (-map (lambda (x) (-contains? (ov-prop x) 'before-string) ) (ov-in (line-beginning-position) (1+ scope)))
-    ;; (if (-first (lambda (x) (-contains? (ov-prop x) 'before-string) ) (ov-in (line-beginning-position) (lsp-symbol-outline-find-indent)))
-    ;;     nil
-    ;;   (overlay-put new-overlay 'before-string
-    ;;                (propertize (format " +" 0 2 'face 'default))
-    ;;                )
-    ;;     )
-    (overlay-put new-overlay 'before-string
-                 (propertize (format " +" 0 2 'face 'lsp-symbol-outline-var-face))
-                 )
-
-    )
-  )
-
 ;; (make-local-variable 'outline-regexp)
 ;; (setq outline-regexp "\\ +")
 
@@ -442,20 +350,6 @@ overlay on the hide-region-overlays \"ring\""
 ;; current timer
 ;; 19.332581
 
-
-(defun lsp-symbol-outline-fold-form-at-point ()
-  (interactive)
-  (save-excursion
-    (if (not (>= (current-indentation) (save-excursion (forward-line 1) (current-indentation))))
-        (progn
-          (lsp-symbol-outline-hide-region-hide)
-          ;; (evil-normal-state)
-          (message "folding..")
-          )
-      (message "no children")
-      )
-    )
-  )
 
 ;; (ov-clear 'invisible t (point) (save-excursion (forward-line 1) (point)))
 ;; (ov-clear 'intangible t (point) (save-excursion (forward-line 1) (point)))
@@ -576,7 +470,8 @@ overlay on the hide-region-overlays \"ring\""
 
          ;; Caching
 
-         (if (and (boundp 'buffer-hash-value) (equal buffer-hash-value (md5 (buffer-substring-no-properties (point-min) (point-max)) )))
+         (if (and (boundp 'buffer-hash-value) (equal buffer-hash-value
+                                                     (md5 (buffer-substring-no-properties (point-min) (point-max)))))
              buffer-orig-outline-list
            (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0))
 
@@ -1712,9 +1607,7 @@ overlay on the hide-region-overlays \"ring\""
     (delete-region (point) (mark))
     )
 
-  (read-only-mode 0)
   (delete-trailing-whitespace)
-  (read-only-mode 1)
 
   )
 
