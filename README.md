@@ -69,7 +69,7 @@ Without the above hack, there is no current way to infer hierarchy for symbols i
 
 ## Usage
 
-Bind the function `(outline-create-buffer-window)` or call it from `M-:`.
+Bind the function `(lsp-symbol-outline-create-buffer-window)` or call it from `M-:`.
 Underlined symbols have documentation.
 
 ## Key Bindings
