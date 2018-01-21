@@ -874,7 +874,7 @@
                                                                      (replace-regexp-in-string " -> .+" ""
                                                                            (nth 7 item))))))))
 
-                              (car (s-match  "\(.+?\)"
+                              (car (s-match  "\(.+?\)\)?"
                                              (s-collapse-whitespace
                                               (replace-regexp-in-string "\n" ""
                                                                         (replace-regexp-in-string " -> .+" ""
@@ -931,8 +931,8 @@
                                                  (if
                                                      (looking-at ".|")
                                                      (progn
-                                                       (forward-char)
-                                                       (cond ((search-forward "}" (line-end-position) t )
+                                                       (forward-char 2)
+                                                       (cond ((lsp-symbol-outline-jump-paren)
                                                               (point)
                                                               )
                                                              ((search-forward "," (line-end-position) t)
@@ -1210,9 +1210,6 @@
 
    )
   )
-
-
-;; HTML
 
 
 (defun lsp-symbol-outline-set-classes-normal ()
@@ -1621,7 +1618,6 @@
 
 (defun lsp-symbol-outline-sort-list (list)
   (--sort (< (nth 2 it) (nth 2 other))  list))
-
 
 
 
