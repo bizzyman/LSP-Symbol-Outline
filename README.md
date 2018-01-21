@@ -17,7 +17,6 @@ My goal is to publish this on melpa some day which will auto-install dependencie
 * s
 * dash
 * misc-cmds
-* evil (For now..)
 
 (optionally, install for languages you use)
 * lsp-java
