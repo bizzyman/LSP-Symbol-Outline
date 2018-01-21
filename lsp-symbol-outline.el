@@ -1,9 +1,5 @@
 ;;; LSP SYMBOL OUTLINE
 
-;; Spacemacs deps
-(require 'imenu) ;;
-;; (require 'imenu-list)
-
 (require 'lsp-mode)
 (require 'ov)
 (require 'hide-region)
@@ -16,20 +12,13 @@
 
 (require 'evil)
 
-(require 'outline) ;;
-(require 'sgml-mode) ;;
+(require 'outline)
+(require 'sgml-mode)
 
 ;; (require 'pos-tip)
 
 ;; vars
 
-(setq lsp-enable-eldoc nil)
-(setq lsp-highlight-symbol-at-point nil)
-(setq lsp-enable-codeaction nil)
-(setq lsp-enable-completion-at-point nil)
-(setq lsp-enable-xref nil)
-(setq lsp-enable-flycheck nil)
-(setq lsp-enable-indentation nil)
 (setq hide-region-overlays nil)
 (setq lsp-symbol-outline-window-position 'right)
 
@@ -177,7 +166,8 @@
   (interactive)
   (setq window-size-fixed nil)
   (enlarge-window
-   (- (lsp-symbol-outline-find-longest-line) (window-width (selected-window)))
+   (- (lsp-symbol-outline-find-longest-line)
+ (window-width (selected-window)))
    t)
 
   (setq window-size-fixed 'width)
@@ -617,7 +607,7 @@ overlay on the hide-region-overlays \"ring\""
     (lsp-symbol-outline-print-outline outline-list buf)
 
     (lsp-symbol-outline-source-to-final)
-    
+
     ;; (imenu-list--set-mode-line)
     (insert " \t \n")
 
