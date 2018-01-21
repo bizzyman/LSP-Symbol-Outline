@@ -8,10 +8,9 @@
 (require 'dash)
 (require 'tern)
 (require 'misc-cmds)
+(require 'misc)
 (require 'outline)
 (require 'sgml-mode)
-
-(require 'evil)
 
 
 ;; vars
@@ -22,9 +21,7 @@
   :group 'lsp-symbol-outline)
 
 (defcustom lsp-symbol-outline-modeline-format
-  '(
-    (:propertize "%b" face mode-line-buffer-id) " "
-    )
+  '((:propertize "%b" face mode-line-buffer-id) " ")
   "Local modeline format for the LSP symbol outline mode."
   :group 'lsp-symbol-outline)
 
@@ -36,13 +33,6 @@
       ))
  'face-defface-spec
  )
-
-(defface outline-button-face
-  '((t
-     ;; (:foreground "#93a0b2")
-     ))
-  "face for outline links"
-  )
 
 (defface lsp-symbol-outline-atom-icons-face
   '((t
@@ -110,6 +100,7 @@
 ;; (count-lines 1 (point))
 
 
+;; Defuns
 
 
 (defun lsp-symbol-outline-toggle-off-fl ()
@@ -151,14 +142,6 @@
   )
 
 
-
-
-
-
-
-
-
-
 (defun lsp-symbol-outline-widen-to-widest-column ()
   (interactive)
   (setq window-size-fixed nil)
@@ -180,72 +163,17 @@
   )
 
 
-
-
-;; (define-key  evil-normal-state-map    (kbd  "L"      )  'evil-end-of-line                            )
-;; (define-key  evil-visual-state-map    (kbd  "L"      )  'visual-end-line                             )
-;; (define-key  evil-normal-state-map    (kbd  "H"      )  'evil-next-line-1-first-non-blank            )
-;; (define-key  evil-visual-state-map    (kbd  "H"      )  'evil-next-line-1-first-non-blank            )
-
-;; (define-key  evil-normal-state-map    (kbd  "("      )  'evil-jump-item                              )
-;; (define-key  evil-visual-state-map    (kbd  "("      )  'evilmi--simple-jump                         )
-
-
-
-
-
-
-
-
-
-
-
-
-
 (defun lsp-symbol-outline-create-buffer ()
   (get-buffer-create (format "*%s-outline*" (file-name-sans-extension (buffer-name))))
   )
-
-;; (push '(text-mode "\\s-*\\ " "\\s-*\\ " "\\b\\B" lsp-symbol-outline-forward-sexp nil)
-;;       hs-special-modes-alist)
-
-;; (push `(imenu-list-major-mode "\\s-*\\+ " "\\s-*\\+ " "\\b\\B" imenu-list-forward-sexp nil)
-;;       hs-special-modes-alist)
-
-(defun lsp-symbol-outline-unfold-all ()
-  (interactive)
-  (save-excursion
-    (evil-goto-first-line)
-    (while (not (eobp))
-      (lsp-symbol-outline-unfold-at-point)
-      (forward-line 1)
-      )
-    )
-  )
-
-
-;; (defun lsp-symbol-outline-fold-all ()
-;;   (interactive)
-;;   (save-excursion
-;;     (evil-goto-first-line)
-;;     (while (not (eobp))
-;;       (if (lsp-symbol-lsp-symbol-outline-fold-form-at-point-internal)
-;;           (vertical-motion 1)
-;;         (forward-line 1)
-;;           )
-;;       )
-;;     )
-;;   (goto-char (point-min))
-;;   (evil-forward-word-begin)
-;;   )
-
 
 
 (defun lsp-symbol-outline-up-scope ()
   (interactive)
   (outline-up-heading 1 nil)
-  (evil-forward-WORD-begin 2)
+  (forward-whitespace 2)
   )
+
 
 (defun lsp-symbol-outline-up-sibling ()
   (interactive)
@@ -265,102 +193,10 @@
     (while (and (not (equal (current-indentation) indent) ) (not (eobp)))
       (outline-next-line)
       )
+    (forward-whitespace 2)
     )
   )
 
-
-
-(defun lsp-symbol-outline-fold-all ()
-  (interactive)
-  (evil-goto-line)
-  (vertical-motion -1)
-  (while (not (equal (string-to-number (format-mode-line "%l")) 1))
-    (lsp-symbol-outline-fold-form-at-point)
-    (vertical-motion -1)
-
-    )
-  (evil-beginning-of-line)
-  (evil-forward-word-begin)
-  (lsp-symbol-outline-fold-form-at-point)
-  )
-
-
-(defun lsp-symbol-outline-find-indent ()
-  (let ((indent (current-indentation)))
-    (save-excursion
-      (vertical-motion 1)
-      (while (looking-at (make-string (1+ indent) 32))
-        (vertical-motion 1)
-        )
-      (point)
-      ))
-  )
-
-
-;; (make-local-variable 'outline-regexp)
-;; (setq outline-regexp "\\ +")
-
-
-(defun lsp-symbol-outline-fold-at-point-no-children ()
-  (interactive)
-  ;; (profiler-start 'cpu)
-  (save-excursion
-    (if (not (>= (current-indentation) (save-excursion (forward-line 1) (current-indentation))))
-        (let ((current-line (string-to-number (format-mode-line "%l"))) (scope-end (lsp-symbol-outline-find-indent)))
-          (progn
-            (goto-char scope-end
-                       ;; (if
-                       ;;     (re-search-forward
-                       ;;      (format "^%s[^ ]"
-                       ;;              ;; (make-string (current-indentation)  32)
-                       ;;              (apply 'concat (make-list (current-indentation) "\\( \\|[^ ]?\\)"))
-                       ;;              ;; (s-repeat (current-indentation) "\\( \\|[^ ]\\)")
-                       ;;              )
-                       ;;      nil t 1 )
-                       ;;     ;; (line-beginning-position)
-                       ;;     (1- (point))
-                       ;;   ;; (save-excursion
-                       ;;   ;;   (move-beginning-of-line nil) (point)
-                       ;;   ;;                 )
-                       ;;   (point-max)
-                       ;;   )
-                       ;; (+ 2 (current-indentation))
-                       )
-
-
-            (while (not (equal (string-to-number (format-mode-line "%l")) current-line))
-              ;; (evil-beginning-of-line)
-              (vertical-motion -1)
-              (end-of-line)
-              (lsp-symbol-outline-fold-form-at-point)
-              )
-
-            ;; (hide-region-hide)
-            ;; (lsp-symbol-outline-fold-form-at-point)
-            ;; (evil-normal-state)
-            ;; (message "folding..")
-            ))
-      (message "no children")
-      )
-    )
-  ;; (profiler-report)
-  ;; (profiler-stop)
-  )
-
-;; current timer
-;; 19.332581
-
-
-;; (ov-clear 'invisible t (point) (save-excursion (forward-line 1) (point)))
-;; (ov-clear 'intangible t (point) (save-excursion (forward-line 1) (point)))
-
-
-(defun lsp-symbol-outline-unfold-at-point ()
-  (interactive)
-  (ov-clear 'invisible t (point) (save-excursion (forward-line 1) (point)))
-  (ov-clear 'intangible t (point) (save-excursion (forward-line 1) (point)))
-  (message "unfolding")
-  )
 
 (defun lsp-symbol-outline-forward-sexp ()
   (interactive)
@@ -379,18 +215,20 @@
 
 (defun lsp-symbol-outline-previous-line ()
   (interactive)
-  (evil-previous-line)
+  ;; (ignore-errors (previous-line))
+  (vertical-motion -1)
   ;; (forward-line -1)
   ;; (beginning-of-line)
   (while (looking-at "$")
-    (evil-previous-line)
+    ;; (ignore-errors (previous-line))
+    (vertical-motion -1)
     )
-  (evil-beginning-of-line)
-  ;; (evil-forward-word-begin 2)
+  ;; (beginning-of-line)
+  ;; (forward-whitespace 2)
 
   (if (not (looking-at-p " *[^ ] "))
-      (evil-forward-word-begin 1)
-    (evil-forward-word-begin 2)
+      (forward-whitespace 1)
+    (forward-whitespace 2)
     )
   )
 
@@ -399,13 +237,14 @@
   (interactive)
   ;; (forward-line 1)
   ;; (evil-next-visual-line)
-  (evil-next-line)
+  ;; (next-line)
+  (vertical-motion 1)
 
-  (evil-beginning-of-line)
+  ;; (beginning-of-line)
 
   (if (not (looking-at-p " *[^ ] "))
-      (evil-forward-word-begin 1)
-    (evil-forward-word-begin 2)
+      (forward-whitespace 1)
+    (forward-to-word 2)
     )
   )
 
@@ -419,6 +258,9 @@
 (define-derived-mode lsp-symbol-outline-mode special-mode "outline"
   "my outline mode"
   (read-only-mode 1)
+  (face-remap-add-relative 'default 'lsp-symbol-outline-button-face)
+  (if (featurep 'evil)
+   (evil-normalize-keymaps))
   ;; (set-face-attribute 'default nil :foreground "white")
   ;; (setq-local truncate-lines 1)
   )
@@ -428,19 +270,21 @@
 (defun lsp-symbol-outline-toggle-folding ()
   (interactive)
   (outline-cycle)
-  (evil-forward-word-begin 2)
+  (forward-whitespace 2)
   )
 
 (defun lsp-symbol-outline-go-top ()
   (interactive)
-  (evil-goto-first-line)
-  (evil-forward-word-begin)
+  (beginning-of-buffer)
+  (forward-whitespace 2)
   )
 
-
-
-
-
+(defun lsp-symbol-outline-go-to-bottom ()
+  (interactive)
+  (end-of-buffer )
+  (vertical-motion -1)
+  (forward-whitespace 2)
+  )
 
 
 (defun lsp-symbol-outline-peek ()
@@ -455,10 +299,6 @@
   )
 
 
-(evil-make-overriding-map lsp-symbol-outline-mode-map 'normal)
-(add-hook 'lsp-symbol-outline-mode-hook #'evil-normalize-keymaps)
-
-
 (defun lsp-symbol-outline-create-buffer-window ()
   (interactive)
   (if (not lsp-mode)
@@ -470,12 +310,12 @@
 
          ;; Caching
 
-         (if (and (boundp 'buffer-hash-value) (equal buffer-hash-value
-                                                     (md5 (buffer-substring-no-properties (point-min) (point-max)))))
-             buffer-orig-outline-list
-           (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0))
+         ;; (if (and (boundp 'buffer-hash-value) (equal buffer-hash-value
+         ;;                                             (md5 (buffer-substring-no-properties (point-min) (point-max)))))
+         ;;     buffer-orig-outline-list
+         ;;   (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0))
 
-         ;; (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0)
+         (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0)
          )
 
         (mod major-mode)
@@ -504,7 +344,7 @@
     (lsp-symbol-outline-source-to-final)
 
     ;; (imenu-list--set-mode-line)
-    (insert " \t \n")
+    ;; (insert " \t \n")
 
     (lsp-symbol-outline-mode)
 
@@ -530,6 +370,9 @@
     ;; (evil-local-mode 0)
     ;; (evil-mode 1)
 
+    (if (featurep 'evil)
+        (evil-make-overriding-map lsp-symbol-outline-mode-map 'normal))
+
     (make-local-variable 'outline-regexp)
     (setq outline-regexp "^\\ +[^ ]")
 
@@ -540,11 +383,11 @@
        (vconcat (mapcar (lambda (c) (+ face-offset c)) " +"))))
 
     ;; (evil-goto-first-line)
-    ;; (evil-forward-word-begin)
+    ;; (forward-whitespace)
     (goto-line (lsp-symbol-outline-find-closest-cell outline-list current-line))
     (if (not (looking-at-p " *[^ ] "))
-        (evil-forward-word-begin 1)
-      (evil-forward-word-begin 2)
+        (forward-whitespace 1)
+      (forward-whitespace 2)
       )
     (setq window-size-fixed 'width)
     (toggle-truncate-lines 1)
@@ -652,6 +495,16 @@
 
 
 
+(defun lsp-symbol-outline-jump-paren ()
+    "Go to the matching paren"
+    (cond ((eq 4 (car (syntax-after (point))))
+           (forward-sexp)
+           (forward-char -1))
+          ((eq 5 (car (syntax-after (point))))
+           (forward-char 1)
+           (backward-sexp))
+          )
+  )
 
 
 
@@ -687,17 +540,17 @@
                 (search-forward "{")
                 (backward-char)
 
-                (if (equal (nth 0 (reverse ind-item)) "Board")
-                    (if
-                        't
-                        nil
-                      nil)
-                  nil
-                  )
+                ;; (if (equal (nth 0 (reverse ind-item)) "Board")
+                ;;     (if
+                ;;         't
+                ;;         nil
+                ;;       nil)
+                ;;   nil
+                ;;   )
 
                 ;; 2 - java func start range
                 (push (line-number-at-pos) ind-item)
-                (evil-jump-item)
+                (lsp-symbol-outline-jump-paren)
                 ;; 3 - java func end range
                 (push (line-number-at-pos) ind-item)
 
@@ -920,12 +773,6 @@
 ;;  (18 . "Array"))
 
 
-(add-hook 'lsp-symbol-outline-mode-hook
-          (lambda ()
-            (face-remap-add-relative 'default 'lsp-symbol-outline-button-face)))
-
-
-
 (defun lsp-symbol-outline-show-docstring-tip (item)
   (interactive)
   (if item
@@ -1079,7 +926,7 @@
                                                 ((looking-at " {")
                                                  (search-forward "{")
                                                  (backward-char 1)
-                                                 (evil-jump-item)
+                                                 (lsp-symbol-outline-jump-paren)
 
                                                  (if
                                                      (looking-at ".|")
@@ -1152,7 +999,7 @@
                                    ((looking-at " {")
                                     (search-forward "{")
                                     (backward-char 1)
-                                    (evil-jump-item)
+                                    (lsp-symbol-outline-jump-paren)
 
                                     (if
                                                      (looking-at ".|")
@@ -1247,7 +1094,8 @@
         (lsp-symbol-outline-set-properties-vis (point)
                             (save-excursion
                               ;; (search-backward "(" nil t 1)
-                              (evil-jump-item)
+                              (forward-char -1)
+                              (lsp-symbol-outline-jump-paren)
                               (point))
                             )
 
@@ -1273,7 +1121,8 @@
       (lsp-symbol-outline-set-arg-textproperty-inv (point)
                                 (save-excursion
                                   ;; (re-search-backward "(" nil t )
-                                  (evil-jump-item)
+                                  (forward-char -1)
+                                  (lsp-symbol-outline-jump-paren)
                                   (point))
                                 ))))
 
@@ -1601,7 +1450,7 @@
 
     )
   (save-excursion
-    (evil-goto-line)
+    (end-of-buffer)
     (set-mark (point))
     (backward-char 4)
     (delete-region (point) (mark))
@@ -1619,8 +1468,8 @@
   (erase-buffer)
   (lsp-symbol-outline-print-fn-sorted outline-list-sorted)
 
-  (evil-goto-first-line)
-  (evil-forward-word-begin 1)
+  (beginning-of-buffer)
+  (forward-whitespace 2)
 
   (lsp-symbol-outline-source-to-final)
   (setq-local sorted t)
@@ -1803,12 +1652,12 @@
 
 (define-key lsp-symbol-outline-mode-map (kbd "j") #'lsp-symbol-outline-next-line-my)
 (define-key lsp-symbol-outline-mode-map (kbd "k") #'lsp-symbol-outline-previous-line)
-(define-key lsp-symbol-outline-mode-map (kbd "TAB") #'outline-hide-sublevels)
+(define-key lsp-symbol-outline-mode-map (kbd "<tab>") #'outline-hide-sublevels)
 (define-key lsp-symbol-outline-mode-map (kbd "<backtab>") #'outline-show-all)
 (define-key lsp-symbol-outline-mode-map (kbd "f") #'lsp-symbol-outline-toggle-folding)
 (define-key lsp-symbol-outline-mode-map (kbd "q") #'kill-buffer-and-window)
 (define-key lsp-symbol-outline-mode-map (kbd "gg") #'lsp-symbol-outline-go-top)
-(define-key lsp-symbol-outline-mode-map (kbd "G") #'evil-goto-line)
+(define-key lsp-symbol-outline-mode-map (kbd "G") #'lsp-symbol-outline-go-to-bottom)
 (define-key lsp-symbol-outline-mode-map (kbd "o") #'push-button)
 (define-key lsp-symbol-outline-mode-map (kbd "i") #'lsp-symbol-outline-cycle-vis)
 (define-key lsp-symbol-outline-mode-map (kbd "gh") #'lsp-symbol-outline-up-scope)
