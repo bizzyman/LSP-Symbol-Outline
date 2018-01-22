@@ -1041,8 +1041,8 @@
                                     (if
                                                      (looking-at ".|")
                                                      (progn
-                                                       (forward-char)
-                                                       (cond ((search-forward "}" (line-end-position) t )
+                                                       (forward-char 2)
+                                                       (cond ((lsp-symbol-outline-jump-paren)
                                                               (point)
                                                               )
                                                              ((search-forward "," (line-end-position) t)
