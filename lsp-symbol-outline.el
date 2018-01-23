@@ -294,6 +294,7 @@
   (ov-in 'invisible t (point) (save-excursion (forward-line 1) (point)))
   )
 
+;;;###autoload
 (define-derived-mode lsp-symbol-outline-mode special-mode "outline"
   "my outline mode"
   (read-only-mode 1)

@@ -92,12 +92,18 @@ Underlined symbols have documentation.
 
 ## Notes on current state of this package, lsp and bugs
 
-As mentioned at the beginning, this is an early stage package which will undergo many changes in the future. The next priority is to structure this package properly and minimize dependencies (including evil). 
+As mentioned at the beginning, this is an early stage package which will undergo many changes in the future. The next priority is to structure this package properly and minimize dependencies (including evil**. 
 
 ### LSP
 
 Currently this package uses Microsoft's Language Server Protocol features and the various implementations. As this is not yet a mature project, this means there will be bugs with this package as well. One I came across many times is having more than one project open at the same time causes the server to fail. Reopening the file usually fixes this. 
 
 Furthermore, features to this package will track LSP features. One that is on the horizon currently is real implementation of a symbol hierarchy which will enable a more precise tree structure for this package. Please follow the following issues: https://github.com/Microsoft/language-server-protocol/issues/136 https://github.com/Microsoft/language-server-protocol/issues/327 https://github.com/Microsoft/vscode/issues/34968 .
+
+### Known Bugs
+
+**Why are the function arguments in js modes missing?**
+This seems to be related to tern. It seems to get confused when more than one file from different projects are opened
+simultaneously, or after a long idle period. Try reverting the buffer.
 
 
