@@ -39,6 +39,8 @@
 
 ;;; Code:
 
+;; Dependencies
+
 (require 'lsp-mode)
 (require 'ov)
 (require 'request)
@@ -52,119 +54,98 @@
 (require 'sgml-mode)
 
 
-;; vars
+;; Vars
 
 (defcustom lsp-symbol-outline-window-position
-  'right
-  "LSP symbol outline window position."
-  :group 'lsp-symbol-outline)
+           'right
+           "LSP symbol outline window position."
+           :group 'lsp-symbol-outline)
 
 (defcustom lsp-symbol-outline-modeline-format
-  '((:propertize "%b" face mode-line-buffer-id) " ")
-  "Local modeline format for the LSP symbol outline mode."
-  :group 'lsp-symbol-outline)
+           '((:propertize "%b" face mode-line-buffer-id) " ")
+           "Local modeline format for the LSP symbol outline mode."
+           :group 'lsp-symbol-outline)
 
-;; faces
 
-(face-spec-set
- 'lsp-symbol-outline-button-face
- '((t :foreground "#93a0b2"
-      ))
- 'face-defface-spec
- )
+;; Faces
+
+(defface lsp-symbol-outline-button-face
+         '((t :foreground "#93a0b2"))
+         "Face for outline node buttons."
+         :group 'lsp-symbol-outline-faces)
 
 (defface lsp-symbol-outline-atom-icons-face
-  '((t
-     :foreground "#a9afba"
-     :family "atomicons"
-     :height 1.0
-     ))
-  "face for atom-outline icons"
-  )
+         '((t (:inherit default
+               :family "atomicons"
+               :height 1.0)))
+         "Face for atom-outline icons."
+         :group 'lsp-symbol-outline-faces)
 
 (defface lsp-symbol-outline-term-symbol-type-name-face
-  '((t (:foreground "white")
-       ))
-  "face for outline symbol types node"
-  )
+         '((t (:foreground "white")))
+         "Face for outline symbol types node."
+         :group 'lsp-symbol-outline-faces)
 
 (defface lsp-symbol-outline-class-face-has-doc
-  '((t (:inherit (font-lock-type-face)
-                 :underline t
-                 )
-       ))
-  "face for outline class nodes"
-  )
-
+         '((t (:inherit font-lock-type-face
+               :underline t)))
+         "Face for outline class nodes with docs."
+         :group 'lsp-symbol-outline-faces)
 
 (defface lsp-symbol-outline-class-face
-  '((t (:inherit (font-lock-type-face))
-       ))
-  "face for outline class nodes"
-  )
+         '((t (:inherit font-lock-type-face)))
+         "Face for outline class nodes."
+         :group 'lsp-symbol-outline-faces)
 
 (defface lsp-symbol-outline-function-face-has-doc
-  '((t (:inherit (font-lock-function-name-face)
-                 :underline t
-                 )
-       ))
-  "face for outline function nodes"
-  )
-
+         '((t (:inherit font-lock-function-name-face
+               :underline t)))
+         "Face for outline function nodes with docs."
+         :group 'lsp-symbol-outline-faces)
 
 (defface lsp-symbol-outline-function-face
-  '((t (:inherit (font-lock-function-name-face))
-       ))
-  "face for outline function nodes"
-  )
+         '((t :inherit font-lock-function-name-face))
+         "Face for outline function nodes."
+         :group 'lsp-symbol-outline-faces)
 
 (defface lsp-symbol-outline-var-face
-  '((t (:inherit (font-lock-variable-name-face))
-       ))
-  "face for outline variable nodes"
-  )
+         '((t :inherit font-lock-variable-name-face))
+         "Face for outline variable nodes."
+         :group 'lsp-symbol-outline-faces)
 
 (defface lsp-symbol-outline-arg-face
-  '((t (:inherit (font-lock-doc-face))
-       ))
-  "face for outline node arguments"
-  )
+         '((t :inherit font-lock-doc-face))
+         "Face for outline node arguments."
+         :group 'lsp-symbol-outline-faces)
 
 (defface lsp-symbol-outline-html-tag-props-face
-  '((t (:foreground "#75B5AA")
-       ))
-  "face for outline html props"
-  )
+         '((t :foreground "#75B5AA"))
+         "Face for outline html props."
+         :group 'lsp-symbol-outline-faces)
 
-;; (count-lines 1 (point))
+
+;; Major mode
+
+;;;###autoload
+(define-derived-mode lsp-symbol-outline-mode
+                     special-mode
+                     "outline"
+                     "Major mode for the LSP Symbol Outline."
+                     (read-only-mode 1))
 
 
 ;; Defuns
 
-
 (defun lsp-symbol-outline-toggle-off-fl ()
-
-  ;; (setq my-mode-font-lock-keywords
-  ;;       (list
-  ;;        '("#...." 0
-  ;;          (progn (remove-text-properties (match-beginning 0)
-  ;;                                      (match-end 0)
-  ;;                                      'invisible)
-  ;;                 'bold))))
-  (read-only-mode 0)
-
-  (remove-text-properties (point-min)
-                          (point-max)
-                          '(invisible t))
-
-  ;; (font-lock-fontify-buffer)
-
-  (read-only-mode 1)
-
-  )
-(remove-text-properties (point-min)
-                        (point-max)
-                        '(invisible t))
+       ""
+       (read-only-mode 0)
+       (remove-text-properties (point-min)
+                               (point-max)
+                               '(invisible t))
+       (read-only-mode 1))
+       (remove-text-properties (point-min)
+                               (point-max)
+                               '(invisible t))
 
 (defun lsp-symbol-outline-toggle-on-fl ()
 
@@ -271,7 +252,6 @@
     )
   )
 
-
 (defun lsp-symbol-outline-next-line-my ()
   (interactive)
   ;; (forward-line 1)
@@ -287,25 +267,9 @@
     )
   )
 
-
-;; (looking-at-p " *[^ ] ")
-
 (defun lsp-symbol-outline-overlay-at-point-p ()
   (ov-in 'invisible t (point) (save-excursion (forward-line 1) (point)))
   )
-
-;;;###autoload
-(define-derived-mode lsp-symbol-outline-mode special-mode "outline"
-  "my outline mode"
-  (read-only-mode 1)
-  (face-remap-add-relative 'default 'lsp-symbol-outline-button-face)
-  (if (featurep 'evil)
-   (evil-normalize-keymaps))
-  ;; (set-face-attribute 'default nil :foreground "white")
-  ;; (setq-local truncate-lines 1)
-  )
-
-;; (add-hook 'lsp-symbol-outline-mode-hook '(lambda () (toggle-truncate-lines 1) (setq truncate-lines 1) (spacemacs/toggle-truncate-lines-on) (spacemacs/toggle-visual-line-navigation-off)))
 
 (defun lsp-symbol-outline-toggle-folding ()
   (interactive)
@@ -326,7 +290,6 @@
   (forward-whitespace 2)
   )
 
-
 (defun lsp-symbol-outline-peek ()
   (interactive)
   (let (;; (w (window-numbering-get-number))
@@ -338,7 +301,7 @@
     )
   )
 
-
+;;;###autoload
 (defun lsp-symbol-outline-create-buffer-window ()
   (interactive)
   (if (not lsp-mode)
@@ -350,12 +313,14 @@
 
          ;; Caching
 
-         (if (and (boundp 'buffer-hash-value) (equal buffer-hash-value
-                                                     (md5 (buffer-substring-no-properties (point-min) (point-max)))))
-             buffer-orig-outline-list
-           (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0))
+         ;; (if (and (boundp 'buffer-hash-value) (equal buffer-hash-value
+         ;;                                             (md5 (buffer-substring-no-properties (point-min) (point-max)))))
+         ;;     buffer-orig-outline-list
+         ;;   (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0))
 
-         ;; (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0)
+         (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list
+                                       (lsp-symbol-outline-get-symbols-list))
+                                       0)
          )
 
         (mod major-mode)
@@ -383,13 +348,7 @@
 
     (lsp-symbol-outline-source-to-final)
 
-    ;; (imenu-list--set-mode-line)
-    ;; (insert " \t \n")
-
     (lsp-symbol-outline-mode)
-
-    (if (featurep 'evil-snipe)
-     (evil-snipe-mode 0))
 
     (setq-local mode-line-format nil)
 
@@ -400,18 +359,6 @@
     (setq-local sorted nil)
 
     (outline-minor-mode 1)
-
-    ;; (set-fringe-style '(0 . 0))
-
-    (if (boundp 'evil-evilified-state-local-map)
-        (define-key evil-evilified-state-local-map (kbd "d") #'lsp-symbol-outline-show-docstring-tip)
-      )
-
-    ;; (evil-local-mode 0)
-    ;; (evil-mode 1)
-
-    (if (featurep 'evil)
-        (evil-make-overriding-map lsp-symbol-outline-mode-map 'normal))
 
     (make-local-variable 'outline-regexp)
     (setq outline-regexp "^\\ +[^ ]")
@@ -557,7 +504,17 @@
       (let ((ind-item ) )
 
         ;; 0 - NAME
+
         (push (replace-regexp-in-string "\(.+\)" "" (gethash "name" item)) ind-item )
+
+        (if (equal (nth 0 (reverse ind-item)) "fulfilled")
+            (if
+                't
+                nil
+              nil)
+          nil
+          )
+
         ;; 1 - KIND
         (push (gethash "kind" item) ind-item)
 
@@ -580,13 +537,6 @@
                 (search-forward "{")
                 (backward-char)
 
-                ;; (if (equal (nth 0 (reverse ind-item)) "Board")
-                ;;     (if
-                ;;         't
-                ;;         nil
-                ;;       nil)
-                ;;   nil
-                ;;   )
 
                 ;; 2 - java func start range
                 (push (line-number-at-pos) ind-item)
@@ -626,7 +576,7 @@
             (push (cond
 
                    (
-                    (equal major-mode 'js2-mode)
+                    (memq major-mode '(js-mode js2-mode))
                     (let ((lk ))
                       (request
                        (format "http://localhost:%s" tern-known-port)
@@ -1171,7 +1121,7 @@
 (defun lsp-symbol-outline-cycle-vis ()
   (interactive)
   (cond
-   ((equal outline-buf-mode "js2-mode")
+   ((member outline-buf-mode '("js-mode" "js2-mode"))
     (cond
      ((equal inv 0)
       (read-only-mode 0)
@@ -1707,3 +1657,5 @@
 (set-face-attribute 'lsp-symbol-outline-button-face nil :foreground "#93a0b2")
 
 (provide 'lsp-symbol-outline)
+
+;;; lsp-symbol-outline.el ends here
