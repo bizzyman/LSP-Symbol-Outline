@@ -35,6 +35,8 @@
 ;;  - Introduce configuration
 ;;  - Support More languages: C++, Rust, Go, Elixir, HTML
 ;;  - Split file into language specific parts
+;;  - Debug tree sort function
+;;  - Make request based functions async and parallel
 ;;
 
 ;;; Code:
@@ -135,32 +137,6 @@
 
 
 ;; Defuns
-
-(defun lsp-symbol-outline-toggle-off-fl ()
-       ""
-       (read-only-mode 0)
-       (remove-text-properties (point-min)
-                               (point-max)
-                               '(invisible t))
-       (read-only-mode 1))
-       (remove-text-properties (point-min)
-                               (point-max)
-                               '(invisible t))
-
-(defun lsp-symbol-outline-toggle-on-fl ()
-
-  (setq my-mode-font-lock-keywords
-        (list
-         '("#\\w+" 0
-           (progn (add-text-properties (match-beginning 0)
-                                       (match-end 0)
-                                       '(invisible t))
-                  'bold))))
-
-  (font-lock-fontify-buffer)
-
-  )
-
 
 (defun lsp-symbol-outline-widen-to-widest-column ()
   (interactive)
@@ -483,7 +459,7 @@
 
 
 (defun lsp-symbol-outline-jump-paren ()
-    "Go to the matching paren"
+    "Go to the matching paren."
     (cond ((eq 4 (car (syntax-after (point))))
            (forward-sexp)
            (forward-char -1))
@@ -491,6 +467,28 @@
            (forward-char 1)
            (backward-sexp))
           )
+  )
+
+
+
+
+(defun lsp-symbol-outline-tern-request-sync (linenum)
+  (let* ((concatted-var)
+         (url-mime-charset-string nil)
+         (url-request-method "POST")
+         (deactivate-mark nil)
+         (url-request-data (format
+                            "{\"query\":{\"end\":%s,\"file\":\"%s\",\"type\":\"type\",\"preferFunction\":true}}"
+                            linenum
+                            (buffer-file-name)
+                            ))
+         (url-show-status nil)
+         (url (url-parse-make-urlobj "http" nil nil tern-server tern-known-port "/" nil nil nil))
+         (url-current-object url))
+    (alist-get 'type (json-read-from-string
+                      (with-current-buffer (url-retrieve-synchronously url)
+                        (car (s-match "{.*}" (buffer-substring-no-properties (point-min) (point-max)))))))
+    )
   )
 
 
@@ -577,15 +575,9 @@
 
                    (
                     (memq major-mode '(js-mode js2-mode))
-                    (let ((lk ))
-                      (request
-                       (format "http://localhost:%s" tern-known-port)
-                       :type "POST"
-                       :parser 'json-read
-                       :success (function* (lambda (&key data &allow-other-keys) (setq lk (cdr (car data)))))
-                       :data
-                       (format "{\"query\":{\"end\":%s,\"file\":\"%s\",\"type\":\"type\",\"preferFunction\":true}}"
-                               (save-excursion
+                    (let ((lk
+                           (lsp-symbol-outline-tern-request-sync
+                            (save-excursion
                                  (goto-line (nth 3 ind-item))
                                  (move-to-column (nth 0 ind-item))
 
@@ -609,12 +601,8 @@
                                                          )
                                  (1- (point))
                                  )
-
-                               (buffer-file-name)
-                               )
-                       :sync t
                        )
-
+                      ))
                       ;; (replace-regexp-in-string ": [^ )\\|]+" "" lk )
                       lk
                       )
