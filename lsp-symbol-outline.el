@@ -37,6 +37,7 @@
 ;;  - Split file into language specific parts
 ;;  - Debug tree sort function
 ;;  - Make request based functions async and parallel
+;;  - Remove Ternjs and Anaconda as dependency and rely only on lsp for func arguments and hierarchy/depth parsing
 ;;
 
 ;;; Code:
@@ -294,10 +295,14 @@
          ;;     buffer-orig-outline-list
          ;;   (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0))
 
-         (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list
-                                       (lsp-symbol-outline-get-symbols-list))
-                                       0)
+         (progn
+          (profiler-start 'cpu)
+          (my-new-func (lsp-symbol-outline-sort-list
+                        (lsp-symbol-outline-get-symbols-list))
+                       )
+          )
          )
+
 
         (mod major-mode)
         (buf (current-buffer))
@@ -308,6 +313,9 @@
                                    (/ (frame-width) 6)) lsp-symbol-outline-window-position)))
         (outline-buffer (lsp-symbol-outline-create-buffer))
         )
+
+    (profiler-report)
+    (profiler-stop)
 
     (setq-local buffer-orig-outline-list outline-list)
     (setq-local buffer-hash-value (md5 (buffer-substring-no-properties (point-min) (point-max))))
@@ -457,6 +465,7 @@
       )))
 
 
+(require 'deferred)
 
 (defun lsp-symbol-outline-jump-paren ()
     "Go to the matching paren."
@@ -467,6 +476,138 @@
            (forward-char 1)
            (backward-sexp))
           )
+  )
+
+(defun my-deferred-request ()
+  (let*
+      ((concatted-var)
+       (url-mime-charset-string nil)
+       (url-request-method "POST")
+       (deactivate-mark nil)
+       (url-request-data (format
+                          "{\"query\":{\"end\":%s,\"file\":\"%s\",\"type\":\"type\",\"preferFunction\":true}}"
+                          196 (buffer-file-name)))
+       (url-show-status nil)
+       (url (url-parse-make-urlobj "http" nil nil tern-server tern-known-port "/" nil nil nil))
+       (url-current-object url))
+  (deferred:$
+    (deferred:parallel
+      (deferred:url-retrieve url)
+      (deferred:url-retrieve url)
+      (deferred:url-retrieve url)
+      )
+    (deferred:nextc it (lambda (buffers)
+                         (cl-loop for i in buffers
+                                  do
+                                  (with-current-buffer i
+                                    (push (alist-get (quote type)
+                                                (json-read-from-string (car (s-match "{.*}" (buffer-substring-no-properties
+                                                                                             (point-min) (point-max))))))
+                                          concatted-varrr
+                                          )))
+                         )))
+  ;; concatted-var
+  ))
+
+(defun my-lsp-make-request-deferred-new ()
+  (let ((nd (deferred:new #'identity)))
+    (lsp--send-request-async (lsp--make-request
+                              "textDocument/hover"
+                              `(:textDocument (:uri "file:///usr/local/lib/python3.6/dist-packages/pyls/python_ls.py")
+                                              :position
+                                              (:line
+                                               16
+                                               :character 13)))
+                             (lambda (x) (deferred:callback-post nd x) )
+                             )
+    nd))
+
+(defun my-lsp-make-request-deferred-new ()
+  (let ((nd (deferred:new #'identity)))
+    (deferred:callback-post nd (lsp--send-request (lsp--make-request
+                                                   "textDocument/hover"
+                                                   `(:textDocument (:uri "file:///usr/lib/erlang/lib/jinterface-1.8/java_src/com/ericsson/otp/erlang/AbstractConnection.java")
+                                         :position
+                                         (:line
+                                          147
+                                          :character 30)))
+                        ))
+    nd))
+
+;; (setq-local alist-var nil)
+;; (push '(another . lol) alist-var)
+;; (alist-get )
+
+(defun lsp-callback-func (x &rest args)
+  (message (gethash "value" (car (gethash "contents" x))))
+  )
+
+(defun simple-lsp-hover-req-async ()
+  (lsp--send-request-async (lsp--make-request
+                           "textDocument/hover"
+                           `(:textDocument (:uri "file:///usr/lib/erlang/lib/jinterface-1.8/java_src/com/ericsson/otp/erlang/AbstractConnection.java")
+                                           :position
+                                           (:line
+                                            147
+                                            :character 30)))
+                           'lsp-callback-func
+                          ))
+
+;; (message (gethash "value" (car (gethash "contents" (lsp--send-request (lsp--make-request
+;;                                                                "textDocument/hover"
+;;                                                                `(:textDocument (:uri "file:///home/a/Dropbox/java_test_files/New_Text_Document.java")
+;;                                                                                :position
+;;                                                                                (:line
+;;                                                                                 557
+;;                                                                                 :character 39)))
+;;                                                               )))))
+
+
+;; (dotimes (i 603) (message
+;;                   (gethash "contents" (lsp--send-request (lsp--make-request
+;;                                        "textDocument/hover"
+;;                                        `(:textDocument (:uri "file:///usr/local/lib/python3.6/dist-packages/pyls/python_ls.py")
+;;                                                        :position
+;;                                                        (:line
+;;                                                         16
+;;                                                         :character 13)))))
+;;                   )
+;;          )
+
+
+;; (dotimes (i 603) (message (gethash "value" (car (gethash "contents"  (lsp--send-request (lsp--make-request
+;;                                       "textDocument/hover"
+;;                                       `(:textDocument (:uri "file:///usr/lib/erlang/lib/jinterface-1.8/java_src/com/ericsson/otp/erlang/AbstractConnection.java")
+;;                                                       :position
+;;                                                       (:line
+;;                                                        147
+;;                                                        :character 30)))
+;;                                      ;; (lambda (x) (message (gethash "value" (car (gethash "contents" x)))))
+;;                                      )))))
+;;          )
+
+
+
+(defun my-deferred-request--lsp ()
+  (let*
+      ((concatted-var ))
+  (deferred:$
+    (deferred:parallel
+
+      (my-lsp-make-request-deferred-new)
+      (my-lsp-make-request-deferred-new)
+      (my-lsp-make-request-deferred-new)
+
+      )
+    (deferred:nextc it (lambda (buffers)
+                         (cl-loop for i in buffers
+                                  do
+                                  (push (ignore-errors (gethash "value" (car (gethash "contents" i))))  concatted-varrr)
+                                  )
+                         ))
+    )
+  ;; concatted-var
+  )
   )
 
 
@@ -585,20 +726,7 @@
                                  (backward-char)
 
                                  ;; 6 - js2 docstring
-                                 (let ((docs
-                                        (cddr (gethash "contents"
-                                                      (lsp--send-request
-                                                       (lsp--make-request "textDocument/hover"
-                                                                          (lsp--text-document-position-params)))
-                                                      ))))
-                                                         (if docs
-                                                          (push
-                                                           (car docs)
-                                                           ind-item
-                                                           )
-                                                          (push nil ind-item)
-                                                          )
-                                                         )
+                                 (push nil ind-item)
                                  (1- (point))
                                  )
                        )
@@ -1490,6 +1618,77 @@
 
 
 
+(defun my-new-func (list)
+  (let ((global-counter 0) (local-counter 0) (local-end 0) (list-length (length list)))
+    (while (< global-counter list-length)
+      ;; check if end-point (nth 3) of current symbol greater than next symbol in list
+      (if (ignore-errors (> (nth 3 (nth global-counter list)) (nth 3 (nth (1+ global-counter) list))))
+          ;; if it is > find the next symbol with end-point (nth 3) > than symbol at index global-counter
+          (let ((local-counter (1+ global-counter)))
+            (while (ignore-errors (> (nth 3 (nth global-counter list)) (nth 3 (nth local-counter list))))
+              (setq local-counter (1+ local-counter))
+              )
+            (setq local-end local-counter)
+            (setq local-counter (1+ global-counter))
+            (while (< local-counter local-end)
+              (setf (nth 4 (nth local-counter list)) (1+ (nth 4 (nth local-counter list))))
+              (setq local-counter (1+ local-counter))
+              )
+            )
+          )
+      (setq global-counter (1+ global-counter))
+      )
+    )
+  list
+  )
+
+
+(defun lsp-symbol-outline-tree-sort-map (list)
+  (let ((split 0) (start 0))
+    (while (< start (length list))
+     (-map-indexed (lambda (it-index it)
+                     (if (if (eq (nth 3 (nth (1+ it-index) (-drop start list))) nil)
+                             nil
+                           ;; compare end point of cell and 1+ cell
+                           (< (nth 3 (nth (1+ it-index) (-drop start list))) (nth 3 it)))
+                         (progn
+                           ;; first cell that has end line > than current cell becomes split
+                           (setq split
+                                 (let ((index (1+ it-index)) )
+                                   (while (equal split 0)
+                                     (if (< (if (eq nil (nth 3 (nth index list)))
+                                                (1+ (nth 3 (nth it-index list)))
+                                              (nth 3 (nth index list))
+                                              )
+                                            (nth 3 (nth it-index list))
+                                            )
+                                         (setq index (1+ index))
+                                       (setq split index)
+                                       )
+                                     )
+                                   split
+                                   )
+                                 )
+                           ;; increment depth for cells between it-index+1 and split
+                           (setq list
+                                 (let ((index (1+ it-index)))
+                                   (while (< index split)
+                                     ;; (-update-at 4 (lambda (x) (1+ x)) (nth index list))
+                                     (setf (nth 4 (nth index list)) (1+ (nth 4 (nth index list))))
+                                     (setq index (1+ index))
+                                     )
+                                   list
+                                   )
+                                 )
+                           )
+                       ))
+                   (-drop start list))
+     (setq start (1+ start))
+     )
+    )
+  list
+  )
+
 
 
 
@@ -1528,7 +1727,6 @@
 
                )
       )
-
 
     ;; (if (equal (nth 0 (nth start list)) "Board")
     ;;     (if
