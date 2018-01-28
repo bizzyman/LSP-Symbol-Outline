@@ -60,7 +60,7 @@ The following code has been added to this implementation https://github.com/pala
 19          'name': d.name,
 20          'kind': _kind(d),
 21          'location': {'uri': document.uri, 'range': _range(d)},
-22 +        'depth': parse_depth(d.get_line_code(before=1, after=-1))
+22 +        'depth': parse_depth(d.get_line_code())
 23      } for d in definitions]
 ```
 Without the above hack, there is no current way to infer hierarchy for symbols in python using lsp.
