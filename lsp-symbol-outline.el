@@ -37,7 +37,8 @@
 ;;  - Split file into language specific parts
 ;;  - Debug tree sort function
 ;;  - Make request based functions async and parallel
-;;  - Remove Ternjs and Anaconda as dependency and rely only on lsp for func arguments and hierarchy/depth parsing
+;;  - Remove Ternjs and Anaconda as dependency and rely only on lsp for func
+;;    arguments and hierarchy/depth parsing
 ;;
 
 ;;; Code:
@@ -85,7 +86,8 @@
          :group 'lsp-symbol-outline-faces)
 
 (defface lsp-symbol-outline-term-symbol-type-name-face
-         '((t (:foreground "white")))
+         ;; '((t (:foreground "white")))
+         '((t (:foreground "color-141")))
          "Face for outline symbol types node."
          :group 'lsp-symbol-outline-faces)
 
@@ -121,6 +123,12 @@
          "Face for outline node arguments."
          :group 'lsp-symbol-outline-faces)
 
+(defface lsp-symbol-outline-arg-type-face
+         ;; '((t :inherit font-lock-type-face))
+         '((t :inherit font-lock-preprocessor-face))
+         "Face for outline node arguments."
+         :group 'lsp-symbol-outline-faces)
+
 (defface lsp-symbol-outline-html-tag-props-face
          '((t :foreground "#75B5AA"))
          "Face for outline html props."
@@ -132,7 +140,7 @@
 ;;;###autoload
 (define-derived-mode lsp-symbol-outline-mode
                      special-mode
-                     "outline"
+                     "S-outline"
                      "Major mode for the LSP Symbol Outline."
                      (read-only-mode 1))
 
@@ -140,94 +148,73 @@
 ;; Defuns
 
 (defun lsp-symbol-outline-widen-to-widest-column ()
-  (interactive)
-  (setq window-size-fixed nil)
-  (enlarge-window
-   (- (lsp-symbol-outline-find-longest-line)
- (window-width (selected-window)))
-   t)
-
-  (setq window-size-fixed 'width)
-  )
-
+       (interactive)
+       (setq window-size-fixed nil)
+       (enlarge-window (- (lsp-symbol-outline-find-longest-line)
+                          (window-width (selected-window)))
+                       t)
+       (setq window-size-fixed 'width))
 
 (defun lsp-symbol-outline-find-longest-line ()
-  (save-excursion
-    (goto-longest-line (point-min) (point-max))
-    (end-of-line)
-    (ceiling (* 1.15 (1+ (current-column))))
-    )
-  )
-
+       (save-excursion (goto-longest-line (point-min)
+                                          (point-max))
+                       (end-of-line)
+                       (ceiling (* 1.15 (1+ (current-column))))))
 
 (defun lsp-symbol-outline-create-buffer ()
-  (get-buffer-create (format "*%s-outline*" (file-name-sans-extension (buffer-name))))
-  )
-
+       (get-buffer-create
+        (format "*%s-outline*"
+                (file-name-sans-extension (buffer-name)))))
 
 (defun lsp-symbol-outline-up-scope ()
-  (interactive)
-  (outline-up-heading 1 nil)
-  (forward-whitespace 2)
-  )
-
+       (interactive)
+       (outline-up-heading 1 nil)
+       (forward-whitespace 2))
 
 (defun lsp-symbol-outline-up-sibling ()
-  (interactive)
-  (let ((indent (current-indentation)))
-    (lsp-symbol-outline-previous-line)
-    (while (and (not (equal (current-indentation) indent) ) (not (eobp)))
-      (lsp-symbol-outline-previous-line)
-      )
-    )
-  )
-
+       (interactive)
+       (let ((indent (current-indentation)))
+            (lsp-symbol-outline-previous-line)
+            (while (and (not (equal (current-indentation)
+                                    indent))
+                        (not (eobp)))
+                   (lsp-symbol-outline-previous-line))))
 
 (defun lsp-symbol-outline-down-sibling ()
-  (interactive)
-  (let ((indent (current-indentation)))
-    (outline-next-line)
-    (while (and (not (equal (current-indentation) indent) ) (not (eobp)))
-      (outline-next-line)
-      )
-    (forward-whitespace 2)
-    )
-  )
-
+       (interactive)
+       (let ((indent (current-indentation)))
+            (outline-next-line)
+            (while (and (not (equal (current-indentation)
+                                    indent))
+                        (not (eobp)))
+                   (outline-next-line))
+            (forward-whitespace 2)))
 
 (defun lsp-symbol-outline-forward-sexp ()
-  (interactive)
-  (let ((indent (current-indentation)))
-    (forward-line 1)
-    (while (and (> (current-indentation) indent) (not (eobp)))
-      (forward-line 1)
-      (end-of-line)
-      )
-    (forward-line -1)
-    (end-of-line)
-
-    )
-  )
-
+       (interactive)
+       (let ((indent (current-indentation)))
+            (forward-line 1)
+            (while (and (> (current-indentation) indent)
+                        (not (eobp)))
+                   (forward-line 1)
+                   (end-of-line))
+            (forward-line -1)
+            (end-of-line)))
 
 (defun lsp-symbol-outline-previous-line ()
-  (interactive)
-  ;; (ignore-errors (previous-line))
-  (vertical-motion -1)
-  ;; (forward-line -1)
-  ;; (beginning-of-line)
-  (while (looking-at "$")
-    ;; (ignore-errors (previous-line))
-    (vertical-motion -1)
-    )
-  ;; (beginning-of-line)
-  ;; (forward-whitespace 2)
-
-  (if (not (looking-at-p " *[^ ] "))
-      (forward-whitespace 1)
-    (forward-whitespace 2)
-    )
-  )
+       (interactive)
+       ;; (ignore-errors (previous-line))
+       (vertical-motion -1)
+       ;; (forward-line -1)
+       ;; (beginning-of-line)
+       (while (looking-at "$")
+         ;; (ignore-errors (previous-line))
+              (vertical-motion -1))
+       ;; (beginning-of-line)
+       ;; (forward-whitespace 2)
+       (if (not (looking-at-p " *[^ ] "))
+           (forward-whitespace 1)
+           (forward-whitespace 2)))
 
 (defun lsp-symbol-outline-next-line-my ()
   (interactive)
@@ -235,48 +222,43 @@
   ;; (evil-next-visual-line)
   ;; (next-line)
   (vertical-motion 1)
-
   ;; (beginning-of-line)
-
   (if (not (looking-at-p " *[^ ] "))
       (forward-whitespace 1)
-    (forward-to-word 2)
-    )
-  )
+    ;; (forward-to-word 2)
+      (forward-whitespace 2)))
 
 (defun lsp-symbol-outline-overlay-at-point-p ()
-  (ov-in 'invisible t (point) (save-excursion (forward-line 1) (point)))
-  )
+       (ov-in 'invisible
+              t
+              (point)
+              (save-excursion (forward-line 1)
+                              (point))))
 
 (defun lsp-symbol-outline-toggle-folding ()
-  (interactive)
-  (outline-cycle)
-  (forward-whitespace 2)
-  )
+       (interactive)
+       (outline-cycle)
+       (forward-whitespace 2))
 
 (defun lsp-symbol-outline-go-top ()
-  (interactive)
-  (beginning-of-buffer)
-  (forward-whitespace 2)
-  )
+       (interactive)
+       (beginning-of-buffer)
+       (forward-whitespace 2))
 
 (defun lsp-symbol-outline-go-to-bottom ()
-  (interactive)
-  (end-of-buffer )
-  (vertical-motion -1)
-  (forward-whitespace 2)
-  )
+       (interactive)
+       (end-of-buffer )
+       (vertical-motion -1)
+       (forward-whitespace 2))
 
 (defun lsp-symbol-outline-peek ()
-  (interactive)
-  (let (;; (w (window-numbering-get-number))
-        (w (selected-window))
-        )
-    (push-button)
-    (select-window w)
-    ;; (select-window-by-number w)
-    )
-  )
+       (interactive)
+       (let (;; (w (window-numbering-get-number))
+             (w (selected-window)))
+            (push-button)
+            (select-window w)
+         ;; (select-window-by-number w)
+            ))
 
 ;;;###autoload
 (defun lsp-symbol-outline-create-buffer-window ()
@@ -284,6 +266,7 @@
   (if (not lsp-mode)
       (lsp-mode)
     )
+  ;; (setq timing-var2 0.0)
   (let ((current-line (string-to-number (format-mode-line "%l")))
 
         (outline-list
@@ -296,10 +279,10 @@
          ;;   (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0))
 
          (progn
-          (profiler-start 'cpu)
-          (my-new-func (lsp-symbol-outline-sort-list
-                        (lsp-symbol-outline-get-symbols-list))
-                       )
+          ;; (profiler-start 'cpu)
+           (my-new-func (lsp-symbol-outline-sort-list
+                         (lsp-symbol-outline-get-symbols-list))
+                        )
           )
          )
 
@@ -314,8 +297,8 @@
         (outline-buffer (lsp-symbol-outline-create-buffer))
         )
 
-    (profiler-report)
-    (profiler-stop)
+    ;; (profiler-report)
+    ;; (profiler-stop)
 
     (setq-local buffer-orig-outline-list outline-list)
     (setq-local buffer-hash-value (md5 (buffer-substring-no-properties (point-min) (point-max))))
@@ -330,7 +313,9 @@
     (setq-local outline-buf-mode (symbol-name mod))
     (lsp-symbol-outline-print-outline outline-list buf)
 
-    (lsp-symbol-outline-source-to-final)
+    (if (equal mod 'java-mode)
+        (lsp-symbol-outline-source-to-final-java)
+     (lsp-symbol-outline-source-to-final))
 
     (lsp-symbol-outline-mode)
 
@@ -367,7 +352,9 @@
 
 
 (defun lsp-symbol-outline-find-closest-cell (list current-line)
-  (1+ (cond ((progn (-elem-index (car (last (-filter (lambda (x) (< (nth 2 x) current-line)) list))) list))) (t 0)))
+  (cond ((ignore-errors (+ 2 (progn
+                 (-elem-index (car (last (-filter (lambda (x) (< (plist-get x :symbol-start-line) current-line)) list))) list)))))
+        (t 1))
   )
 
 (defun lsp-symbol-outline-lsp-get-document-symbols ()
@@ -500,7 +487,7 @@
                          (cl-loop for i in buffers
                                   do
                                   (with-current-buffer i
-                                    (push (alist-get (quote type)
+                                    (push (alist-get 'type
                                                 (json-read-from-string (car (s-match "{.*}" (buffer-substring-no-properties
                                                                                              (point-min) (point-max))))))
                                           concatted-varrr
@@ -539,8 +526,11 @@
 ;; (alist-get )
 
 (defun lsp-callback-func (x &rest args)
-  (message (gethash "value" (car (gethash "contents" x))))
+  ;; (message (gethash "value" (car (gethash "contents" x))))
+  ;; x
   )
+
+
 
 (defun simple-lsp-hover-req-async ()
   (lsp--send-request-async (lsp--make-request
@@ -550,7 +540,8 @@
                                            (:line
                                             147
                                             :character 30)))
-                           'lsp-callback-func
+                           ;; #'intern
+                           (lambda (x) (message "HELLO"))
                           ))
 
 ;; (message (gethash "value" (car (gethash "contents" (lsp--send-request (lsp--make-request
@@ -562,6 +553,9 @@
 ;;                                                                                 :character 39)))
 ;;                                                               )))))
 
+;; (dotimes (i 603)
+;;   (simple-lsp-hover-req-async)
+;;   )
 
 ;; (dotimes (i 603) (message
 ;;                   (gethash "contents" (lsp--send-request (lsp--make-request
@@ -637,25 +631,29 @@
 
 (defun lsp-symbol-outline-get-symbols-list ()
   ;; get name, kind, line and character info
+  ;; (setq timing-var 0.0)
   (let ((agg-items ) (index 1))
     (dolist (item (lsp-symbol-outline-lsp-get-document-symbols))
       ;; (message "%s" (princ item))
       (let ((ind-item ) )
 
-        ;; 0 - NAME
 
-        (push (replace-regexp-in-string "\(.+\)" "" (gethash "name" item)) ind-item )
+        ;; 0 INDEX
+        (setq ind-item (plist-put ind-item :index index))
 
-        (if (equal (nth 0 (reverse ind-item)) "fulfilled")
-            (if
-                't
-                nil
-              nil)
-          nil
-          )
+        ;; 1 - NAME
+        (setq ind-item (plist-put ind-item :name (replace-regexp-in-string "\(.+\)" "" (gethash "name" item))))
 
-        ;; 1 - KIND
-        (push (gethash "kind" item) ind-item)
+        ;; (if (equal (plist-get (reverse ind-item) :name) "fulfilled")
+        ;;     (if
+        ;;         't
+        ;;         nil
+        ;;       nil)
+        ;;   nil
+        ;;   )
+
+        ;; 2 - KIND
+        (plist-put ind-item :kind (gethash "kind" item))
 
         (if (and (or (equal (gethash "kind" item) 5) (equal (gethash "kind" item) 6) (equal (gethash "kind" item) 12)) (equal major-mode 'java-mode))
             (progn
@@ -676,28 +674,47 @@
                 (search-forward "{")
                 (backward-char)
 
-
                 ;; 2 - java func start range
-                (push (line-number-at-pos) ind-item)
+                (plist-put ind-item :symbol-start-line (1+ (gethash "line" (gethash "start" (gethash "range" (gethash "location" item))))))
                 (lsp-symbol-outline-jump-paren)
                 ;; 3 - java func end range
-                (push (line-number-at-pos) ind-item)
+                (plist-put ind-item :symbol-end-line (line-number-at-pos))
 
                 )
               )
 
             (progn
               ;; 2 - var start range
-              (push (1+ (gethash "line" (gethash "start" (gethash "range" (gethash "location" item))))) ind-item)
+              (plist-put ind-item :symbol-start-line (1+ (gethash "line" (gethash "start" (gethash "range" (gethash "location" item))))))
               ;; 3 - var end range
-              (push (1+ (gethash "line" (gethash "end" (gethash "range" (gethash "location" item))))) ind-item)
+              (plist-put ind-item :symbol-end-line (1+ (gethash "line" (gethash "end" (gethash "range" (gethash "location" item))))))
              )
           )
 
-        ;; 4 - depth placeholder?
-        (push 0 ind-item)
+        ;; 4 - DEPTH ?
+        ;; (plist-put ind-item :depth (pcase (gethash "depth" item) (`nil 0)))
+        (if (equal major-mode 'python-mode)
+            (progn
+             (plist-put ind-item :indent-depth
+                        (save-excursion
+                          (goto-line (plist-get ind-item :symbol-start-line))
+                          (/ (current-indentation) 4)
+                          )
+                        )
+             (if (ignore-errors (= (plist-get ind-item :indent-depth) (plist-get (car agg-items) :indent-depth)))
+                 (plist-put ind-item :depth (plist-get (car agg-items) :indent-depth))
+               (plist-put ind-item :depth
+                          (if (ignore-errors (> (plist-get ind-item :indent-depth) (plist-get (car agg-items) :indent-depth)))
+                          (1+ (plist-get (car agg-items) :indent-depth))
+                          (plist-get ind-item :indent-depth)
+                          )
+                          )
+                 )
+             )
+
+          (plist-put ind-item :depth 0))
         ;; 5 - COLUMN
-        (push (gethash "character" (gethash "start" (gethash "range" (gethash "location" item)))) ind-item)
+        (plist-put ind-item :column (gethash "character" (gethash "start" (gethash "range" (gethash "location" item)))))
 
 
         ;;debug
@@ -706,27 +723,45 @@
 
         ;; get arguments and docstring
 
-        (if (or (equal 6 (nth 4 ind-item)) ;; (equal 5 (nth 4 ind-item))
-                (equal 12 (nth 4 ind-item))
+        (if (or (equal 6 (plist-get ind-item :kind)) ;; (equal 5 (plist-get ind-item :depth))
+                (equal 12 (plist-get ind-item :kind))
                 (and (equal major-mode 'python-mode)
-                     (equal 5 (nth 4 ind-item)))
+                     (equal 5 (plist-get ind-item :kind)))
                 )
 
-            (push (cond
+            (plist-put ind-item :args (cond
 
                    (
                     (memq major-mode '(js-mode js2-mode))
                     (let ((lk
                            (lsp-symbol-outline-tern-request-sync
                             (save-excursion
-                                 (goto-line (nth 3 ind-item))
-                                 (move-to-column (nth 0 ind-item))
+                              (goto-line (plist-get ind-item :symbol-start-line))
+                                 (move-to-column (plist-get ind-item :column))
 
                                  (search-forward "(")
                                  (backward-char)
 
                                  ;; 6 - js2 docstring
-                                 (push nil ind-item)
+                                 (save-excursion
+                                   (goto-line (1- (plist-get ind-item :symbol-start-line)))
+
+                                   (if (search-forward "*/" (line-end-position) t)
+                                       (plist-put ind-item :docs (progn
+                                         (search-backward "/**")
+                                         (forward-char 3)
+                                         (s-collapse-whitespace
+                                          (s-chop-prefix "\n"
+                                           (s-replace-regexp "/\\*\\*" ""
+                                            (s-replace-regexp " +\\* " ""
+                                             (buffer-substring-no-properties
+                                              (point)
+                                              (progn (forward-sentence) (point)))))))
+                                         ))
+                                     nil
+                                     ))
+
+
                                  (1- (point))
                                  )
                        )
@@ -738,52 +773,47 @@
                     )
 
 
+
                  (
                     (equal major-mode 'java-mode)
-                    (ignore-errors (gethash "value"
-                              (car (gethash "contents"
-                                 (lsp--send-request (lsp--make-request
-                                  "textDocument/hover"
-                                   `(:textDocument (:uri ,(gethash "uri" (gethash "location" item) item))
-                                     :position (:line
-                                      ,(1- (nth 3 ind-item))
-                                       :character ,(save-excursion
-                                         (goto-line (nth 3 ind-item))
-                                           (move-to-column
-                                             (gethash "character"
-                                              (gethash "end" (gethash "range" (gethash "location" item)))))
-                                                (let ((docs
-                                                  (cdr (gethash "contents"
-                                                   (lsp--send-request (lsp--make-request
-                                                     "textDocument/hover"
-                                                      `(:textDocument (:uri ,(gethash "uri" (gethash "location" item) item))
-                                                         :position
-                                                          (:line
-                                                            ,(1- (nth 3 ind-item))
-                                                              :character ,(nth 0 ind-item)))
-                                                               ))))
-                                                                ))
-                                                                 (if docs
-                                                                  ;; 6 java docstring
-                                                                    (push
-                                                                      (car docs)
-                                                                       ind-item
-                                                                        )
-                                                                          (push nil ind-item)
-                                                                            )
-                                                                             )
+                    (let ((docs
+                           (save-excursion
+                             (goto-line (1- (plist-get ind-item :symbol-start-line)))
 
-                                                                             ;; (while
-                                                                             ;;     (progn
-                                                                             ;;       (search-forward ")")
-                                                                             ;;       (in-string-p)))
-                                                                               (search-forward ")")
-                                                                                (backward-char 2)
-                                                                                 (string-to-number
-                                                                                  (format-mode-line "%c")))
-                                                                                           )))))
-                                   )))
-                    ;; 7 java args
+                             (if (search-forward "*/" (line-end-position) t)
+                                 (progn
+                                   (search-backward "/**")
+                                   (forward-char 3)
+                                   ;; (forward-line 1)
+                                   ;; (s-replace-regexp " +\\* " "" (buffer-substring-no-properties (line-beginning-position) (line-end-position)))
+                                   (s-collapse-whitespace
+                                    (s-chop-prefix "\n"
+                                      (s-replace-regexp "<.+?>" ""
+                                       (s-replace-regexp "/\\*\\*" ""
+                                        (s-replace-regexp " +\\* " "" (thing-at-point 'sentence t))))))
+                                   )
+                               ))))
+                      (if docs
+                          ;; 6 java docstring
+                          (plist-put ind-item
+                                     :docs docs
+                                     )
+                        (plist-put ind-item :docs nil)
+                        )
+
+                      ;; 7 java args
+
+                      (let ((arg (save-excursion
+                               (goto-line (plist-get ind-item :symbol-start-line))
+                               (search-forward "(" (line-end-position) t)
+                               (buffer-substring-no-properties
+                                (progn (forward-char -1) (point))
+                                (progn (forward-sexp) (point)))
+                               )))
+                        (if (equal arg "()") nil (s-collapse-whitespace arg))
+                        )
+
+                    )
                     )
 
                  (
@@ -791,67 +821,63 @@
 
                   (progn
                     (let ((contts
-                           (ignore-errors (gethash "contents"
-                                     (lsp--send-request (lsp--make-request
-                                                         "textDocument/hover"
-                                                         `(:textDocument (:uri ,(gethash "uri" (gethash "location" item) item))
-                                                                         :position
-                                                                         (:line
-                                                                          ,(1- (nth 3 ind-item))
-                                                                          :character ,(nth 0 ind-item)))
-                                                         ))))))
+                           (save-excursion
+                             (goto-line (plist-get ind-item :symbol-start-line))
+                             (forward-line 1)
+                             (if
+                                 (search-forward "\"\"\"" (line-end-position) t)
+                                 (s-collapse-whitespace
+                                  (s-chop-prefix "\n" (buffer-substring-no-properties
+                                                       (point)
+                                                       (progn (forward-sentence) (point)))))
+                             )
+                             )
+                           ))
 
                       ;; 6 python docstring
                       (if contts
-                          (if (equal 5 (nth 4 ind-item))
-                              (push contts ind-item)
-                            (progn
-                              (push (ignore-errors (string-join
-                                      (-remove (lambda (i) (or (not (stringp i)) (string-empty-p i)))
-                                               (-drop 2
-                                                      (s-split "\n"
-                                                               contts
-                                                               )))
-                                      "\n"))
-                                    ind-item
-                                    )
-                              )
+                          (progn
+                            (plist-put ind-item
+                                       :docs contts
+                                       )
                             )
-                        (push nil ind-item)
+                        (plist-put ind-item :docs nil)
                         )
 
                       ;; 7 python args
-                      (if (not (equal 5 (nth 5 ind-item)))
-
-                          contts
-                        nil
-
-                          )
+                      (let ((arg (save-excursion
+                                   (goto-line (plist-get ind-item :symbol-start-line))
+                                   (search-forward "(" (line-end-position) t)
+                                   (buffer-substring-no-properties
+                                    (progn (forward-char -1) (point))
+                                    (progn (forward-sexp) (point)))
+                                   )))
+                        (if (equal arg "()") nil (s-collapse-whitespace arg))
+                        )
                       )
                     )
 
                     )
 
                    )
-                  ind-item)
+                  )
 
           (progn
 
             ;; 6 nil docs for vars
-            (push nil ind-item)
+            (plist-put ind-item :docs nil)
 
             ;; 7 nil args for vars
-            (push nil ind-item)
+            (plist-put ind-item :args nil)
             )
 
           )
 
         ;; 8 DEPTH?
-        (if (gethash "depth" item) (push (gethash "depth" item) ind-item)  (push nil ind-item))
-        ;; 9 INDEX
-        (push index ind-item)
+        ;; (if (gethash "depth" item) (push `(python-depth ,(gethash "depth" item)) ind-item)  (push '(python-depth nil) ind-item))
+
         (setq index (1+ index))
-        (push (reverse ind-item) agg-items)
+        (push ind-item agg-items)
         )
       )
     (reverse agg-items)
@@ -895,46 +921,46 @@
     ;;   (and
     ;;    (save-excursion
     ;;      (vertical-motion -1)
-    ;;      (looking-at (format " %s" (make-string (* 4 (truncate (nth 4 item))) 32)) )
+    ;;      (looking-at (format " %s" (make-string (* 4 (truncate (plist-get item :depth))) 32)) )
     ;;      )
     ;;    (save-excursion
 
     ;;      (search-forward "(" (line-end-position) t 1)
-    ;;      (search-forward (format "%s" (nth 0 item)) (line-end-position) t 1)
+    ;;      (search-forward (format "%s" (plist-get item :name)) (line-end-position) t 1)
     ;;      )
-    ;;    (or (equal (nth 1 item) 13) (equal (nth 1 item) 14))
+    ;;    (or (equal (plist-get item :kind) 13) (equal (plist-get item :kind) 14))
     ;;    )
     ;; (delete item list)
     (insert " ")
-    (let ((x 0)) (while (< x (* (nth 4 item) 2)) (progn (insert " ") (setq x (1+ x)))) )
+    (let ((x 0)) (while (< x (* (plist-get item :depth) 2)) (progn (insert " ") (setq x (1+ x)))) )
     (cond
-     ((equal (nth 1 item) 2)
+     ((equal (plist-get item :kind) 2)
       (if window-system
           (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
         (insert (propertize "M " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
         )
       )
-     ((equal (nth 1 item) 5)  (if window-system
+     ((equal (plist-get item :kind) 5)  (if window-system
                                   (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
                                 (insert (propertize "C " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
-     ((equal (nth 1 item) 6)  (if window-system
+     ((equal (plist-get item :kind) 6)  (if window-system
                                   (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
                                 (insert (propertize "m " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
-     ((equal (nth 1 item) 12) (if window-system
+     ((equal (plist-get item :kind) 12) (if window-system
                                   (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
                                 (insert (propertize "F " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
-     ((equal (nth 1 item) 13) (if window-system
+     ((equal (plist-get item :kind) 13) (if window-system
                                   (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
                                 (insert (propertize "V " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
-     ((equal (nth 1 item) 14) (if window-system
+     ((equal (plist-get item :kind) 14) (if window-system
                                   (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
                                 (insert (propertize "K " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
-     ((equal (nth 1 item) 18) (if window-system
+     ((equal (plist-get item :kind) 18) (if window-system
                                   (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
                                 (insert (propertize "A " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
@@ -943,27 +969,27 @@
           (insert (propertize "* " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
           ))
      )
-    (insert-button (car item) 'action `(lambda (x)
+    (insert-button (plist-get item :name) 'action `(lambda (x)
                                          (switch-to-buffer-other-window ,buf)
-                                         (goto-line ,(nth 2 item))
-                                         (move-to-column ,(nth 5 item))
+                                         (goto-line ,(plist-get item :symbol-start-line))
+                                         (move-to-column ,(plist-get item :column))
                                          )
 
                    'keymap `(keymap (mouse-2 . push-button)  (100 . (lambda () (interactive) (lsp-symbol-outline-show-docstring-tip
-                                                                                              ,(if (nth 6 item) (nth 6 item) nil))
+                                                                                              ,(if (plist-get item :docs) (plist-get item :docs) nil))
                                                                       )))
 
 
                    'face (cond
-                          ((and (nth 6 item) (ignore-errors (not (string-empty-p (nth 6 item))))
-                                (equal (nth 1 item) 12)) 'lsp-symbol-outline-function-face-has-doc)
-                          ((equal (nth 1 item) 12) 'lsp-symbol-outline-function-face)
-                          ((and (nth 6 item) (ignore-errors (not (string-empty-p (nth 6 item))))
-                                (equal (nth 1 item) 6)) 'lsp-symbol-outline-function-face-has-doc)
-                          ((equal (nth 1 item) 6) 'lsp-symbol-outline-function-face)
-                          ((and (nth 6 item) (ignore-errors (not (string-empty-p (nth 6 item))))
-                                (equal (nth 1 item) 5)) 'lsp-symbol-outline-class-face-has-doc)
-                          ((equal (nth 1 item) 5) 'lsp-symbol-outline-class-face)
+                          ((and (plist-get item :docs) (ignore-errors (not (string-empty-p (plist-get item :docs))))
+                                (equal (plist-get item :kind) 12)) 'lsp-symbol-outline-function-face-has-doc)
+                          ((equal (plist-get item :kind) 12) 'lsp-symbol-outline-function-face)
+                          ((and (plist-get item :docs) (ignore-errors (not (string-empty-p (plist-get item :docs))))
+                                (equal (plist-get item :kind) 6)) 'lsp-symbol-outline-function-face-has-doc)
+                          ((equal (plist-get item :kind) 6) 'lsp-symbol-outline-function-face)
+                          ((and (plist-get item :docs) (ignore-errors (not (string-empty-p (plist-get item :docs))))
+                                (equal (plist-get item :kind) 5)) 'lsp-symbol-outline-class-face-has-doc)
+                          ((equal (plist-get item :kind) 5) 'lsp-symbol-outline-class-face)
                           (t 'lsp-symbol-outline-var-face)
                           )
 
@@ -972,27 +998,32 @@
 
     ;; "int num - Test.main(...).Foo.bar(int, int)"
 
-    (if (nth 7 item) (let ((arg-string
-                            (if (equal outline-buf-mode "java-mode")
+    (if (plist-get item :args) (let ((arg-string
+                            (cond ((equal outline-buf-mode "java-mode")
+                                (ignore-errors (replace-regexp-in-string "\n" ""
+                                         (replace-regexp-in-string " -> .+" ""
+                                              (plist-get item :args)))))
 
-                                (ignore-errors (car (s-match "\(.+\)" (car (s-match (concat (car item)  "\(.+?\)")
-                                                                   (replace-regexp-in-string "\n" ""
-                                                                     (replace-regexp-in-string " -> .+" ""
-                                                                           (nth 7 item))))))))
-
-                              (car (s-match  "\(.+?\)\)?"
-                                             (s-collapse-whitespace
-                                              (replace-regexp-in-string "\n" ""
-                                                                        (replace-regexp-in-string " -> .+" ""
-                                                                                                  (nth 7 item))))))
-                                           )
+                                  ((equal outline-buf-mode "python-mode")
+                                   (car (s-match  "\(.+\)"
+                                    (s-collapse-whitespace
+                                     (replace-regexp-in-string "\n" ""
+                                      (replace-regexp-in-string " -> .+" ""
+                                                                (plist-get item :args)))))))
+                                  (t
+                                   (car (s-match  "\(.+?\)\)?"
+                                    (s-collapse-whitespace
+                                     (replace-regexp-in-string "\n" ""
+                                        (replace-regexp-in-string " -> .+" ""
+                                          (plist-get item :args)))))))
+                              )
 
                                        ))
 
                        (if arg-string
                            (progn
                              ;; (insert "\n")
-                             ;; (let ((x 0)) (while (< x (* (nth 4 item) 4)) (progn (insert " ") (setq x (1+ x)))) )
+                             ;; (let ((x 0)) (while (< x (* (plist-get item :depth) 4)) (progn (insert " ") (setq x (1+ x)))) )
                              (insert
                               (propertize
                                arg-string
@@ -1011,6 +1042,81 @@
 
 ;; non-html
 
+(defun lsp-symbol-outline-source-to-final-java ()
+  "Cut refs from the txt, but letting them appear as text properties."
+  (interactive)
+  (save-excursion
+    (goto-char (point-min))
+    (while (re-search-forward ")" nil 'noerror 1)
+      ;; (kill-word -1)
+
+      (search-backward " " (line-beginning-position) t)
+      (lsp-symbol-outline-set-some-overlay-or-textproperty-here
+       (point)
+       (progn
+         (or (search-backward "," (line-beginning-position) t)
+             (search-backward "(" (line-beginning-position) t))
+         (+ (point) 1)
+         )
+       )
+      (while (save-excursion (or
+                              (search-backward "," (line-beginning-position) t)
+                              (search-backward "(" (line-beginning-position) t)))
+        (search-backward " " (line-beginning-position) t)
+        (lsp-symbol-outline-set-some-overlay-or-textproperty-here
+         (point)
+         (progn
+           (or (search-backward "," (line-beginning-position) t)
+               (search-backward "(" (line-beginning-position) t))
+           (+ (point) 1)
+           )
+         )
+        )
+      (vertical-motion 1)
+
+      )))
+
+(defun lsp-symbol-outline-set-arg-types-inv-java ()
+  "Cut refs from the txt, but letting them appear as text properties."
+  (interactive)
+  (save-excursion
+    (goto-char (point-min))
+    (while (re-search-forward ")" nil 'noerror 1)
+      ;; (kill-word -1)
+
+      (search-backward " " (line-beginning-position) t)
+
+      (let ((p (point)) (e))
+        (cond ((search-backward "," (line-beginning-position) t)
+               (setq e (+ (point) 1)))
+              ((search-backward "(" (line-beginning-position) t)
+               (progn (setq e (+ (point) 1)) (setq p (1+ p))))
+              )
+
+        (when e (lsp-symbol-outline-set-arg-textproperty-inv
+          p e
+          )))
+
+      (while (save-excursion (or
+                              (search-backward "," (line-beginning-position) t)
+                              (search-backward "(" (line-beginning-position) t)))
+
+        (search-backward " " (line-beginning-position) t)
+
+        (let ((p (point)) (e))
+          (cond ((search-backward "," (line-beginning-position) t) (setq e (+ (point) 1)))
+                ((search-backward "(" (line-beginning-position) t) (progn (setq e (+ (point) 1)) (setq p (1+ p))))
+                )
+
+          (lsp-symbol-outline-set-arg-textproperty-inv
+           p e
+           ))
+        )
+      (vertical-motion 1)
+
+      )))
+
+
 (defun lsp-symbol-outline-source-to-final ()
   "Cut refs from the txt, but letting them appear as text properties."
   (interactive)
@@ -1025,7 +1131,7 @@
                                                 ((looking-at " fn")
                                                  (search-forward "(")
                                                  (backward-char 1)
-                                                 (goto-char (plist-get (sp-get-sexp) ':end))
+                                                 (goto-char (plist-get (sp-get-sexp) :end))
                                                  )
                                                 (
                                                  )
@@ -1079,7 +1185,7 @@
 
 (defun lsp-symbol-outline-set-some-overlay-or-textproperty-here (beg end)
   (set-text-properties beg end
-                       '(face 'lsp-symbol-outline-var-face)
+                       '(face 'lsp-symbol-outline-arg-type-face)
                        ;; '(invisible t)
                        ;; (propertize ,(buffer-substring-no-properties beg end) 'face 'font-lock-constant-face))
                        ))
@@ -1100,7 +1206,7 @@
                                    ((looking-at " fn")
                                     (search-forward "(")
                                     (backward-char 1)
-                                    (goto-char (plist-get (sp-get-sexp) ':end))
+                                    (goto-char (plist-get (sp-get-sexp) :end))
                                     )
                                    ((looking-at " {")
                                     (search-forward "{")
@@ -1237,11 +1343,13 @@
 (defun lsp-symbol-outline-cycle-vis ()
   (interactive)
   (cond
-   ((member outline-buf-mode '("js-mode" "js2-mode"))
+   ((member outline-buf-mode '("js-mode" "js2-mode" "java-mode"))
     (cond
      ((equal inv 0)
       (read-only-mode 0)
-      (lsp-symbol-outline-set-arg-types-inv)
+      (if (equal outline-buf-mode "java-mode")
+          (lsp-symbol-outline-set-arg-types-inv-java)
+       (lsp-symbol-outline-set-arg-types-inv))
       (setq-local inv 1)
       (read-only-mode 1)
       )
@@ -1258,14 +1366,16 @@
       (progn
         (remove-list-of-text-properties (point-min) (point-max) '(invisible ))
         (lsp-symbol-outline-set-info-vis)
-        (lsp-symbol-outline-source-to-final)
+        (if (equal outline-buf-mode "java-mode")
+            (lsp-symbol-outline-source-to-final-java)
+         (lsp-symbol-outline-source-to-final))
         )
       (setq-local inv 0)
       (read-only-mode 1)
       )
      ))
 
-   ((or (equal outline-buf-mode "python-mode") (equal outline-buf-mode "java-mode"))
+   ((equal outline-buf-mode "python-mode")
     (cond
      ((equal inv 0)
       (read-only-mode 0)
@@ -1411,7 +1521,7 @@
 
 (defun lsp-symbol-outline-sort-by-category (list )
 
-  (--sort (< (nth 1 it) (nth 1 other)) list)
+  (--sort (< (plist-get it :kind) (plist-get other :kind)) list)
 
   )
 
@@ -1441,42 +1551,42 @@
 
          )
 
-        (contains-types (-distinct (-map (lambda (x) (nth 1 x)) outline-list-sorted)))
+        (contains-types (-distinct (-map (lambda (x) (plist-get x :kind)) outline-list-sorted)))
 
         )
 
     (dolist (l contains-types)
-      (let ((k (-filter (lambda (i) (equal (nth 1 i) l)) list)))
+      (let ((k (-filter (lambda (i) (equal (plist-get i :kind) l)) list)))
         (cond
-     ((equal (nth 1 (car k)) 2)
+     ((equal (plist-get (car k) :kind) 2)
       (if window-system
           (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
         (insert (propertize " M " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
         )
       )
-     ((equal (nth 1 (car k)) 5)  (if window-system
+     ((equal (plist-get (car k) :kind) 5)  (if window-system
                                   (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
                                 (insert (propertize " C " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
-     ((equal (nth 1 (car k)) 6)  (if window-system
+     ((equal (plist-get (car k) :kind) 6)  (if window-system
                                   (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
                                 (insert (propertize " m " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
-     ((equal (nth 1 (car k)) 12) (if window-system
+     ((equal (plist-get (car k) :kind) 12) (if window-system
                                   (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
                                 (insert (propertize " F " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
-     ((equal (nth 1 (car k)) 13) (if window-system
+     ((equal (plist-get (car k) :kind) 13) (if window-system
                                   (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
                                 (insert (propertize " V " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
-     ((equal (nth 1 (car k)) 14) (if window-system
+     ((equal (plist-get (car k) :kind) 14) (if window-system
                                   (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
                                 (insert (propertize " K " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
                                 ))
-     ((equal (nth 1 (car k)) 18) (if window-system
+     ((equal (plist-get (car k) :kind) 18) (if window-system
                                   (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize " A " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
+                                (insert (propertize " A " 'face 'LSP-SYMBOL-OUTLINE-TERM-SYMBOL-TYPE-NAME-FACe 'font-lock-ignore 't))
                                 ))
      (t (if window-system
             (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
@@ -1484,54 +1594,53 @@
           ))
          )
 
-        (insert (if (equal (alist-get (nth 1 (nth 0 k)) types) "Class")
-                    (propertize (format "%ses\n" (alist-get (nth 1 (nth 0 k)) types)) 'face 'default)
-                  (propertize (format "%ss\n" (alist-get (nth 1 (nth 0 k)) types)) 'face 'default)
+        (insert (if (equal (plist-get (car k) :kind) 5)
+                    (propertize (format "%ses\n" (alist-get (plist-get (car k) :kind) types)) 'face 'default)
+                  (propertize (format "%ss\n" (alist-get (plist-get (car k) :kind) types)) 'face 'default)
                   )
                 )
 
         (dolist (item k)
           (insert (make-string 5 32))
 
-          (insert-button (car item) 'action `(lambda (x)
+          (insert-button (plist-get item :name) 'action `(lambda (x)
                                                (switch-to-buffer-other-window ,orig-buffer)
-                                         (goto-line ,(nth 2 item))
-                                         (move-to-column ,(nth 5 item))
+                                         (goto-line ,(plist-get item :symbol-start-line))
+                                         (move-to-column ,(plist-get item :column))
                                          )
 
                    'keymap `(keymap (mouse-2 . push-button)  (100 . (lambda () (interactive) (lsp-symbol-outline-show-docstring-tip
-                                                                                              ,(if (nth 6 item) (nth 6 item) nil))
+                                                                                              ,(if (plist-get item :docs) (plist-get item :docs) nil))
                                                                       )))
 
 
                    'face (cond
-                          ((and (nth 6 item) (ignore-errors (not (string-empty-p (nth 6 item))))
-                                (equal (nth 1 item) 12)) 'lsp-symbol-outline-function-face-has-doc)
-                          ((equal (nth 1 item) 12) 'lsp-symbol-outline-function-face)
-                          ((and (nth 6 item) (ignore-errors (not (string-empty-p (nth 6 item))))
-                                (equal (nth 1 item) 6)) 'lsp-symbol-outline-function-face-has-doc)
-                          ((equal (nth 1 item) 6) 'lsp-symbol-outline-function-face)
-                          ((and (nth 6 item) (ignore-errors (not (string-empty-p (nth 6 item))))
-                                (equal (nth 1 item) 5)) 'lsp-symbol-outline-class-face-has-doc)
-                          ((equal (nth 1 item) 5) 'lsp-symbol-outline-class-face)
+                          ((and (plist-get item :docs) (ignore-errors (not (string-empty-p (plist-get item :docs))))
+                                (equal (plist-get item :kind) 12)) 'lsp-symbol-outline-function-face-has-doc)
+                          ((equal (plist-get item :kind) 12) 'lsp-symbol-outline-function-face)
+                          ((and (plist-get item :docs) (ignore-errors (not (string-empty-p (plist-get item :docs))))
+                                (equal (plist-get item :kind) 6)) 'lsp-symbol-outline-function-face-has-doc)
+                          ((equal (plist-get item :kind) 6) 'lsp-symbol-outline-function-face)
+                          ((and (plist-get item :docs) (ignore-errors (not (string-empty-p (plist-get item :docs))))
+                                (equal (plist-get item :kind) 5)) 'lsp-symbol-outline-class-face-has-doc)
+                          ((equal (plist-get item :kind) 5) 'lsp-symbol-outline-class-face)
                           (t 'lsp-symbol-outline-var-face)
                           )
 
 
                    )
 
-          (if (nth 7 item) (let ((arg-string
+          (if (plist-get item :args) (let ((arg-string
                             (if (equal outline-buf-mode "java-mode")
 
-                                (ignore-errors (car (s-match "\(.+\)" (car (s-match (concat (car item)  "\(.+?\)")
-                                                                   (replace-regexp-in-string "\n" ""
-                                                                     (replace-regexp-in-string " -> .+" ""
-                                                                           (nth 7 item))))))))
+                                (ignore-errors (replace-regexp-in-string "\n" ""
+                                  (replace-regexp-in-string " -> .+" ""
+                                    (plist-get item :args))))
 
                               (car (s-match  "\(.+?\)"
                                                                    (replace-regexp-in-string "\n" ""
                                                                      (replace-regexp-in-string " -> .+" ""
-                                                                              (nth 7 item)))))
+                                                                              (plist-get item :args)))))
                                            )
 
                                        ))
@@ -1539,7 +1648,7 @@
                        (if arg-string
                            (progn
                              ;; (insert "\n")
-                             ;; (let ((x 0)) (while (< x (* (nth 4 item) 4)) (progn (insert " ") (setq x (1+ x)))) )
+                             ;; (let ((x 0)) (while (< x (* (plist-get :depth item) 4)) (progn (insert " ") (setq x (1+ x)))) )
                              (insert
                               (propertize
                                arg-string
@@ -1565,8 +1674,9 @@
 
 
 (defun lsp-symbol-outline-print-sorted ()
-
+  (let ((l (nth 1 (s-match " +. \\(\\w+\\)" (buffer-substring-no-properties (line-beginning-position) (line-end-position))))))
   (setq-local outline-list-sorted (lsp-symbol-outline-sort-by-category outline-list))
+
   (read-only-mode 0)
   (erase-buffer)
   (lsp-symbol-outline-print-fn-sorted outline-list-sorted)
@@ -1574,16 +1684,26 @@
   (beginning-of-buffer)
   (forward-whitespace 2)
 
-  (lsp-symbol-outline-source-to-final)
+  (if (equal outline-buf-mode "java-mode")
+      (lsp-symbol-outline-source-to-final-java)
+    (lsp-symbol-outline-source-to-final)
+    )
   (setq-local sorted t)
   (read-only-mode 1)
+  (search-forward-regexp (format "%s\\((\\|$\\)" l) nil t)
+  (beginning-of-line-text)
 
+  )
   )
 
 
 (defun lsp-symbol-outline-print-sequential ()
 
-  (let ((lk))
+  (let ((lk)
+        (l (nth 1
+                (s-match " +. \\(\\w+\\)"
+                         (buffer-substring-no-properties
+                          (line-beginning-position) (line-end-position))))))
     (read-only-mode 0)
     (erase-buffer)
 
@@ -1603,6 +1723,9 @@
     (lsp-symbol-outline-go-top)
 
     (read-only-mode 1)
+    (search-forward-regexp (format "%s\\((\\|$\\)" l) nil t)
+    (beginning-of-line-text)
+    (forward-to-word 1)
     )
   )
 
@@ -1617,27 +1740,61 @@
   )
 
 
+;; (defun lsp-symbol-outline-mode-remove-python-func-args (list)
+;;   (let ((indices ))
+;;     (dolist (item list)
+;;       (if (plist-get item :args)
+;;           (let ((m (s-match "\(.+?\)"
+;;                             (replace-regexp-in-string "\n" "" (plist-get item :args))
+;;                             ;; (plist-get item :args)
+;;                             ))
+;;                 c
+;;                 )
+;;             (if m
+;;                 (progn
+;;                   (setq c (s-count-matches "," (car m)))
+;;                   (push (number-sequence (plist-get item :index)
+;;                                          (+ (plist-get item :index)
+;;                                             (if (equal c 0) 0 c)
+;;                                             )
+;;                                          1
+;;                                          ) indices)
+;;                   )
+;;               )
+;;             )
+;;         )
+;;       )
+;;     (setq indices (-flatten indices))
+;;     (setf list (-remove-at-indices
+;;                 indices
+;;                 list
+;;                 )))
+;;   )
+
 
 (defun my-new-func (list)
   (let ((global-counter 0) (local-counter 0) (local-end 0) (list-length (length list)))
-    (while (< global-counter list-length)
-      ;; check if end-point (nth 3) of current symbol greater than next symbol in list
-      (if (ignore-errors (> (nth 3 (nth global-counter list)) (nth 3 (nth (1+ global-counter) list))))
-          ;; if it is > find the next symbol with end-point (nth 3) > than symbol at index global-counter
+    (if (equal major-mode 'python-mode)
+        ;; (setq list (lsp-symbol-outline-mode-remove-python-func-args list))
+        list
+      (while (< global-counter list-length)
+      ;; check if end-point (plist-get 'symbol-end-line) of current symbol greater than next symbol in list
+      (if (ignore-errors (> (plist-get (nth global-counter list) :symbol-end-line) (plist-get (nth (1+ global-counter) list) :symbol-end-line)))
+          ;; if it is > find the next symbol with end-point (plist-get :symbol-end-line) > than symbol at index global-counter
           (let ((local-counter (1+ global-counter)))
-            (while (ignore-errors (> (nth 3 (nth global-counter list)) (nth 3 (nth local-counter list))))
+            (while (ignore-errors (> (plist-get (nth global-counter list) :symbol-end-line) (plist-get (nth local-counter list) :symbol-end-line)))
               (setq local-counter (1+ local-counter))
               )
             (setq local-end local-counter)
             (setq local-counter (1+ global-counter))
             (while (< local-counter local-end)
-              (setf (nth 4 (nth local-counter list)) (1+ (nth 4 (nth local-counter list))))
+              (plist-put (nth local-counter list) :depth (1+ (plist-get (nth local-counter list) :depth)))
               (setq local-counter (1+ local-counter))
               )
             )
           )
       (setq global-counter (1+ global-counter))
-      )
+      ))
     )
   list
   )
@@ -1647,20 +1804,20 @@
   (let ((split 0) (start 0))
     (while (< start (length list))
      (-map-indexed (lambda (it-index it)
-                     (if (if (eq (nth 3 (nth (1+ it-index) (-drop start list))) nil)
+                     (if (if (eq (plist-get :symbol-end-line (nth (1+ it-index) (-drop start list))) nil)
                              nil
                            ;; compare end point of cell and 1+ cell
-                           (< (nth 3 (nth (1+ it-index) (-drop start list))) (nth 3 it)))
+                           (< (plist-get :symbol-end-line (nth (1+ it-index) (-drop start list))) (plist-get :symbol-end-line it)))
                          (progn
                            ;; first cell that has end line > than current cell becomes split
                            (setq split
                                  (let ((index (1+ it-index)) )
                                    (while (equal split 0)
-                                     (if (< (if (eq nil (nth 3 (nth index list)))
-                                                (1+ (nth 3 (nth it-index list)))
-                                              (nth 3 (nth index list))
+                                     (if (< (if (eq nil (plist-get :symbol-end-line (nth index list)))
+                                                (1+ (plist-get :symbol-end-line (nth it-index list)))
+                                              (plist-get :symbol-end-line (nth index list))
                                               )
-                                            (nth 3 (nth it-index list))
+                                            (plist-get :symbol-end-line (nth it-index list))
                                             )
                                          (setq index (1+ index))
                                        (setq split index)
@@ -1674,7 +1831,7 @@
                                  (let ((index (1+ it-index)))
                                    (while (< index split)
                                      ;; (-update-at 4 (lambda (x) (1+ x)) (nth index list))
-                                     (setf (nth 4 (nth index list)) (1+ (nth 4 (nth index list))))
+                                     (setf (plist-get :depth (nth index list)) (1+ (plist-get :depth (nth index list))))
                                      (setq index (1+ index))
                                      )
                                    list
@@ -1698,18 +1855,18 @@
 
     (if (equal major-mode 'python-mode)
         (progn (dolist (item list)
-                 (if (nth 7 item)
+                 (if (plist-get item :args)
                      (let ((m (s-match "\(.+?\)"
-                                       (replace-regexp-in-string "\n" "" (nth 7 item))
-                                       ;; (nth 7 item)
+                                       (replace-regexp-in-string "\n" "" (plist-get item :args))
+                                       ;; (plist-get item :args)
                                        ))
                            c
                            )
                        (if m
                            (progn
                              (setq c (s-count-matches "," (car m)))
-                             (push (number-sequence (nth 9 item)
-                                                    (+ (nth 9 item)
+                             (push (number-sequence (plist-get item :index)
+                                                    (+ (plist-get item :index)
                                                        (if (equal c 0) 0 c)
                                                        )
                                                     1
@@ -1728,7 +1885,7 @@
                )
       )
 
-    ;; (if (equal (nth 0 (nth start list)) "Board")
+    ;; (if (equal (plist-get (nth start list) :name) "Board")
     ;;     (if
     ;;         't
     ;;         nil
@@ -1736,25 +1893,25 @@
     ;;   nil
     ;;   )
 
-    (if (nth 8 (nth start list))
+    (if (plist-get (nth start list) :python-depth)
         (dolist (item list)
-          (setf (nth 4 item) (nth 8 item))
+          (setf (plist-get item :depth) (plist-get item :python-depth))
           )
 
-      (if (if (eq (nth 3 (nth (1+ start) list)) nil)
+      (if (if (eq (plist-get (nth (1+ start) list) :symbol-end-line) nil)
               nil
-            (< (nth 3 (nth (1+ start) list)) (nth 3 (nth start list)))
+            (< (plist-get (nth (1+ start) list) :symbol-end-line) (plist-get (nth start list) :symbol-end-line))
             )
           (progn
             ;; first cell that has end line > than current cell becomes split
             (setq split
                   (let ((index (1+ start)))
                     (while (equal split 0)
-                      (if (< (if (eq nil (nth 3 (nth index list)))
-                                 (1+ (nth 3 (nth start list)))
-                               (nth 3 (nth index list))
+                      (if (< (if (eq nil (plist-get (nth index list) :symbol-end-line))
+                                 (1+ (plist-get (nth start list) :symbol-end-line))
+                               (plist-get (nth index list) :symbol-end-line)
                                )
-                             (nth 3 (nth start list))
+                             (plist-get (nth start list) :symbol-end-line)
                              )
                           (setq index (1+ index))
                         (setq split index)
@@ -1768,7 +1925,7 @@
                   (let ((index (1+ start)))
                     (while (< index split)
                       ;; (-update-at 4 (lambda (x) (1+ x)) (nth index list))
-                      (setf (nth 4 (nth index list)) (1+ (nth 4 (nth index list))))
+                      (setf (plist-get (nth index list) :depth) (1+ (plist-get (nth index list) :depth)))
                       (setq index (1+ index))
                       )
                     list
@@ -1780,7 +1937,7 @@
 
             )
         ;; call lsp-symbol-outline-tree-sort with new start
-        (if (eq (nth 3 (nth (1+ start) list)) nil)
+        (if (eq (plist-get (nth (1+ start) list) :symbol-end-line) nil)
             list
           (lsp-symbol-outline-tree-sort list (1+ start))
           )
@@ -1793,7 +1950,7 @@
 
 
 (defun lsp-symbol-outline-sort-list (list)
-  (--sort (< (nth 2 it) (nth 2 other))  list))
+  (--sort (< (plist-get it :symbol-start-line) (plist-get other :symbol-start-line))  list))
 
 
 
