@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2018 bizzyman
 
-;; Version: 0.0.1
+;; Version: 0.0.2
 ;; Homepage: https://github.com/bizzyman/LSP-Symbol-Outline
 ;; Keywords: languages, lsp, outline, evil
 
@@ -37,25 +37,63 @@
                    "LSP-Sym-outline state"
                    :enable (motion))
 
-(evil-set-initial-state 'lsp-symbol-outline-mode 'lsp-symbol-outline)
+(evil-set-initial-state 'lsp-symbol-outline-mode
+                        'lsp-symbol-outline)
 
-(define-key evil-lsp-symbol-outline-state-map (kbd "j") #'lsp-symbol-outline-next-line-my)
-(define-key evil-lsp-symbol-outline-state-map (kbd "k") #'lsp-symbol-outline-previous-line)
-(define-key evil-lsp-symbol-outline-state-map (kbd "<tab>") #'outline-hide-sublevels)
-(define-key evil-lsp-symbol-outline-state-map (kbd "<backtab>") #'outline-show-all)
-(define-key evil-lsp-symbol-outline-state-map (kbd "f") #'lsp-symbol-outline-toggle-folding)
-(define-key evil-lsp-symbol-outline-state-map (kbd "q") #'kill-buffer-and-window)
-(define-key evil-lsp-symbol-outline-state-map (kbd "gg") #'lsp-symbol-outline-go-top)
-(define-key evil-lsp-symbol-outline-state-map (kbd "G") #'lsp-symbol-outline-go-to-bottom)
-(define-key evil-lsp-symbol-outline-state-map (kbd "o") #'push-button)
-(define-key evil-lsp-symbol-outline-state-map (kbd "i") #'lsp-symbol-outline-cycle-vis)
-(define-key evil-lsp-symbol-outline-state-map (kbd "gh") #'lsp-symbol-outline-up-scope)
-(define-key evil-lsp-symbol-outline-state-map (kbd "gk") #'lsp-symbol-outline-up-sibling)
-(define-key evil-lsp-symbol-outline-state-map (kbd "gj") #'lsp-symbol-outline-down-sibling)
-(define-key evil-lsp-symbol-outline-state-map (kbd "w") #'lsp-symbol-outline-widen-to-widest-column)
-(define-key evil-lsp-symbol-outline-state-map (kbd "s") #'lsp-symbol-outline-toggle-sorted)
-(define-key evil-lsp-symbol-outline-state-map (kbd "l") #'lsp-symbol-outline-peek)
-(define-key evil-lsp-symbol-outline-state-map (kbd "d") #'lsp-symbol-outline-show-docstring-tip)
+
+;;Keybindings
+
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "j")
+            #'lsp-symbol-outline-next-line)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "k")
+            #'lsp-symbol-outline-previous-line)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "TAB")
+            #'outline-hide-sublevels)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "<backtab>")
+            #'outline-show-all)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "f")
+            #'lsp-symbol-outline-toggle-folding)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "q")
+            #'kill-buffer-and-window)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "gg")
+            #'lsp-symbol-outline-go-top)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "G")
+            #'lsp-symbol-outline-go-to-bottom)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "o")
+            #'push-button)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "i")
+            #'lsp-symbol-outline-cycle-arg-vis)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "gh")
+            #'lsp-symbol-outline-up-scope)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "gk")
+            #'lsp-symbol-outline-up-sibling)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "gj")
+            #'lsp-symbol-outline-down-sibling)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "w")
+            #'lsp-symbol-outline-widen-to-widest-column)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "s")
+            #'lsp-symbol-outline-toggle-sorted)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "l")
+            #'lsp-symbol-outline-peek)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "d")
+            #'lsp-symbol-outline-show-docstring-tip)
 
 (provide 'lsp-symbol-outline-evil)
 
