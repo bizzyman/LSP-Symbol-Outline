@@ -60,8 +60,6 @@ returning the function args and their types for func at POINT-POS."
               (url-current-object url))
          (with-current-buffer (url-retrieve-synchronously url)
            (beginning-of-buffer)
-           (buffer-substring-no-properties (point-min)
-                                           (point-max))
            (buffer-substring-no-properties
             (progn (search-forward "(")
                    (forward-char -1)
