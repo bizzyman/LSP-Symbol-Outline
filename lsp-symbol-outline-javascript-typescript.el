@@ -44,8 +44,7 @@
        ;; FIXME Peformance, maybe make parallel through deferred
        "Send a request to the ternjs server using `url-retrieve-synchronously'
 returning the function args and their types for func at POINT-POS."
-       (let* ((concatted-var)
-              (url-mime-charset-string nil)
+       (let* ((url-mime-charset-string nil)
               (url-request-method "POST")
               (deactivate-mark nil)
               (url-request-data
@@ -59,10 +58,15 @@ returning the function args and their types for func at POINT-POS."
                                           tern-server tern-known-port
                                           "/" nil nil nil))
               (url-current-object url))
-       (alist-get 'type (json-read-from-string
-                         (with-current-buffer (url-retrieve-synchronously url)
-                           (car (s-match "{.*}" (buffer-substring-no-properties
-                                                 (point-min) (point-max)))))))))
+         (with-current-buffer (url-retrieve-synchronously url)
+           (beginning-of-buffer)
+           (buffer-substring-no-properties (point-min)
+                                           (point-max))
+           (buffer-substring-no-properties
+            (progn (search-forward "(")
+                   (forward-char -1)
+                   (point))
+            (re-search-forward "[^\\])" nil t)))))
 
 (defun lsp-symbol-outline--get-symbol-args-js (plist-item hasht-range)
        "Get the arguments for symbol by moving to symbol definition in buffer and
@@ -98,9 +102,7 @@ to symbol definition twice."
                                (buffer-substring-no-properties
                                 (point)
                                 (progn
-                                  (forward-sentence) ;forward-sentence expensive
-                                  ;; (search-forward-regexp
-                                  ;; "\\(\\.\\|?\\|!\\|\\*/\\)")
+                                  (re-search-forward "[.?!/]")
                                   (point))))))))
          nil))
 
@@ -120,14 +122,7 @@ Iterates over symbol list. Javascript specific argument printing."
     ;; args
     (if (plist-get item :args)
         (let ((arg-string
-               (car (s-match
-                     "\(.+\)\)?"
-                     (s-collapse-whitespace
-                      (replace-regexp-in-string
-                       "\n" ""
-                       (replace-regexp-in-string
-                        " -> .+" ""
-                        (plist-get item :args))))))))
+               (plist-get item :args)))
           (if arg-string
               (progn
                 (insert (propertize arg-string
