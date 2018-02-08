@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2018 bizzyman
 
-;; Version: 0.0.1
+;; Version: 0.0.2
 ;; Homepage: https://github.com/bizzyman/LSP-Symbol-Outline
 ;; Keywords: languages, lsp, outline
 
@@ -36,9 +36,10 @@
 ;;  - Support More languages: C++, Rust, Go, Elixir, HTML
 ;;  - Split file into language specific parts
 ;;  - Debug tree sort function
-;;  - Make request based functions async and parallel
+;;  - Make url based functions async and parallel
 ;;  - Remove Ternjs and Anaconda as dependency and rely only on lsp for func
 ;;    arguments and hierarchy/depth parsing
+;;  - Add 'context' view like in Nuclide -> shows definition, other info
 ;;
 
 ;;; Code:
@@ -46,16 +47,10 @@
 ;; Dependencies
 
 (require 'lsp-mode)
-(require 'ov)
-(require 'request)
+(require 'outline)
 (require 'outline-magic)
 (require 's)
 (require 'dash)
-(require 'tern)
-(require 'misc-cmds)
-(require 'misc)
-(require 'outline)
-(require 'sgml-mode)
 
 
 ;; Vars
@@ -70,6 +65,27 @@
            "Local modeline format for the LSP symbol outline mode."
            :group 'lsp-symbol-outline)
 
+(defconst lsp-symbol-outline-symbol-kind-alist
+          '((1  . "File")
+            (2  . "Module")
+            (3  . "Namespace")
+            (4  . "Package")
+            (5  . "Class")
+            (6  . "Method")
+            (7  . "Property")
+            (8  . "Field")
+            (9  . "Constructor")
+            (10 . "Enum")
+            (11 . "Interface")
+            (12 . "Function")
+            (13 . "Variable")
+            (14 . "Constant")
+            (15 . "String")
+            (16 . "Number")
+            (17 . "Boolean")
+            (18 . "Array"))
+          "Alist of symbol kind associations. Used to print correct symbol
+kind names.")
 
 ;; Faces
 
@@ -124,8 +140,7 @@
          :group 'lsp-symbol-outline-faces)
 
 (defface lsp-symbol-outline-arg-type-face
-         ;; '((t :inherit font-lock-type-face))
-         '((t :inherit font-lock-preprocessor-face))
+         '((t :inherit font-lock-type-face))
          "Face for outline node arguments."
          :group 'lsp-symbol-outline-faces)
 
@@ -147,31 +162,721 @@
 
 ;; Defuns
 
-(defun lsp-symbol-outline-widen-to-widest-column ()
-       (interactive)
-       (setq window-size-fixed nil)
-       (enlarge-window (- (lsp-symbol-outline-find-longest-line)
-                          (window-width (selected-window)))
-                       t)
-       (setq window-size-fixed 'width))
+(defun lsp-symbol-outline--lsp-get-document-symbols ()
+       "Get hash table of symbols in current document, uses LSP.
+Ensure that lsp-mode is on and enabled."
+       (lsp--send-request
+        (lsp--make-request "textDocument/documentSymbol"
+                           `(:textDocument
+                             ,(lsp--text-document-identifier)))))
 
-(defun lsp-symbol-outline-find-longest-line ()
+(defun lsp-symbol-outline--put-plist-name (plist-item hasht-item)
+       "Get name from hash table of symbol in HASHT-ITEM and set plist
+:name property. Return plist."
+       (plist-put plist-item
+                  :name
+                  (replace-regexp-in-string "\(.+\)"
+                                            ""
+                                            (gethash "name" hasht-item))))
+
+(defun lsp-symbol-outline--get-symbol-start-line (hasht-range)
+       "Get the symbol start line from hash table HASHT-RANGE.
+ Return line number."
+       (1+ (gethash "line"
+                    (gethash "start"
+                             hasht-range))))
+
+(defun lsp-symbol-outline--get-symbol-end-line (hasht-range)
+       "Get the symbol end line from hash table HASHT-RANGE.
+ Return line number."
+       (1+ (gethash "line"
+                    (gethash "end"
+                             hasht-range))))
+
+(defun lsp-symbol-outline--get-symbol-column (hasht-range)
+       "Get the symbol start column from hash table HASHT-RANGE.
+ Return column number."
+       (gethash "character" (gethash "start" hasht-range)))
+
+(defun lsp-symbol-outline--set-placeholder-depth (plist-item)
+       "Set symbol depth to 0. Depth updated by `lsp-symbol-outline--tree-sort'.
+ Return PLIST-ITEM."
+       (plist-put plist-item :depth 0))
+
+(defun lsp-symbol-outline--get-symbol-args-generic (plist-item hasht-range)
+       "Find symbol start line, move to opening param delimiting \"(\" and
+return buffer contents between parens. Saves excursion so that next operation -
+:docs lookup - can continue from :symbol-start-line.
+
+Returns arg string based on whether it is empty or not."
+       (goto-line (plist-get plist-item :symbol-start-line))
+       (save-excursion
+         (search-forward "(" nil t)
+         (pcase (buffer-substring-no-properties
+                 (progn (forward-char -1) (point))
+                 (progn (forward-sexp) (point)))
+           ("()" nil)
+           (SYMBOL (s-collapse-whitespace SYMBOL)))))
+
+
+;; FOR REFERENCE ONLY
+;; -------------------------
+;; Alist of kind associations for working with hash table returned by
+;; lsp-symbol-outline--lsp-get-document-symbols. Kind can be accessed
+;; by calling (gethash "kind" X) on individual symbol hash-table.
+;; '((1  . "File")
+;;   (2  . "Module")
+;;   (3  . "Namespace")
+;;   (4  . "Package")
+;;   (5  . "Class")
+;;   (6  . "Method")
+;;   (7  . "Property")
+;;   (8  . "Field")
+;;   (9  . "Constructor")
+;;   (10 . "Enum")
+;;   (11 . "Interface")
+;;   (12 . "Function")
+;;   (13 . "Variable")
+;;   (14 . "Constant")
+;;   (15 . "String")
+;;   (16 . "Number")
+;;   (17 . "Boolean")
+;;   (18 . "Array"))
+
+
+(defun lsp-symbol-outline--create-symbols-list (sym-end-handler
+                                                depth-handler
+                                                args-handler
+                                                docs-handler)
+       "Create a list of plists corresponding to symbols in document.
+Properties are inferred by transforming the hash-table returned by
+`lsp-symbol-outline--lsp-get-document-symbols' and specific methods for
+specific language needs. When such a method is required the function
+passed in to the corresponding parameter is applied. For example
+getting the lang symbol end position is done by funcalling SYM-END-HANDLER
+passed to this function from lang specific file.
+
+Each plist is generated by adding to the the plist-item local variable.
+List of plists is returned by the local var agg-items."
+       (let ((agg-items)
+             (index 1))
+         (dolist (hasht-item (lsp-symbol-outline--lsp-get-document-symbols))
+           (let ((plist-item)
+                 (hasht-kind (gethash "kind" hasht-item))
+                 (hasht-range (gethash "range" (gethash "location" hasht-item))))
+
+             ;; 0 - INDEX
+             (setq plist-item (plist-put plist-item :index index))
+
+             ;; 1 - NAME
+             (setq plist-item
+                   (lsp-symbol-outline--put-plist-name plist-item hasht-item))
+
+             ;; 2 - KIND
+             (plist-put plist-item :kind hasht-kind)
+
+             ;; 3 & 4 SYMBOL START AND END LINE
+             (if (memq hasht-kind '(5 6 12)) ;is symbol function or class
+                 (progn
+                   ;; 3 - func/class start range
+                   (plist-put plist-item :symbol-start-line
+                              (lsp-symbol-outline--get-symbol-start-line
+                               hasht-range))
+                   ;; 4 - func/class end range
+                   (plist-put plist-item :symbol-end-line
+                              (funcall sym-end-handler hasht-range)))
+               ;; 3 - var start range
+               (plist-put plist-item :symbol-start-line
+                          (lsp-symbol-outline--get-symbol-start-line
+                           hasht-range))
+               ;; 4 - var end range
+               (plist-put plist-item :symbol-end-line
+                          (lsp-symbol-outline--get-symbol-end-line hasht-range)))
+
+             ;; 5 - DEPTH
+             (setq plist-item (funcall depth-handler plist-item))
+
+             ;; 6 - COLUMN
+             (plist-put plist-item :column
+                        (lsp-symbol-outline--get-symbol-column hasht-range))
+
+             ;; get arguments and docstring
+
+             (save-excursion
+               (if (or (memq hasht-kind '(6 12))
+                       (and (equal major-mode 'python-mode)
+                            ;; ??? so all classes get args/docs?
+                            (equal 5 (plist-get plist-item :kind))))
+                   (progn
+                     ;; 7 - ARGS
+                     (plist-put plist-item :args (funcall args-handler
+                                                          plist-item
+                                                          hasht-range))
+                     ;; 8 - DOCS
+                     (plist-put plist-item :docs (funcall docs-handler
+                                                          plist-item)))
+                 ;; 7 nil args for vars
+                 (plist-put plist-item :args nil)
+                 ;; 8 nil docs for vars
+                 (plist-put plist-item :docs nil)))
+
+        (setq index (1+ index))
+        (push plist-item agg-items)))
+    (reverse agg-items)))
+
+(defun lsp-symbol-outline--sort-list-by-index (list)
+       "Sort list of plists by their :symbol-start-line property.
+Return list of plists in order they appear in document."
+       (--sort (< (plist-get it    :symbol-start-line)
+                  (plist-get other :symbol-start-line))
+               list))
+
+(defun lsp-symbol-outline--tree-sort (list)
+       "Sort list of symbol plists into a hierarchical tree. This is done in two
+stages. First compare :symbol-end-line of current symbol - the `global-counter'
+local var - and find the next symbol with a higher :symbol-end-line - the
+`local-counter' local var. Second, all symbol's depth properties between
+`global-counter' and `local-counter' are incremented by one. Repeat for every
+symbol.
+
+Return tree sorted list of plists."
+       (let ((global-counter 0)
+             (local-counter 0)
+             (local-end 0)
+             (list-length (length list)))
+         (while (< global-counter list-length)
+           ;; check if end-point of current symbol greater than next symbol
+           (if (ignore-errors (> (plist-get (nth global-counter list)
+                                            :symbol-end-line)
+                                 (plist-get (nth (1+ global-counter) list)
+                                            :symbol-end-line)))
+               ;; if it is > find the next symbol with end-point
+               ;; > than symbol at index global-counter
+               (let ((local-counter (1+ global-counter)))
+                 (while (ignore-errors
+                          (> (plist-get (nth global-counter list)
+                                        :symbol-end-line)
+                             (plist-get (nth local-counter list)
+                                        :symbol-end-line)))
+                        (setq local-counter (1+ local-counter)))
+                 (setq local-end local-counter)
+                 (setq local-counter (1+ global-counter))
+                 (while (< local-counter local-end)
+                        (plist-put (nth local-counter list)
+                                   :depth
+                                   (1+ (plist-get (nth local-counter list)
+                                                  :depth)))
+                        (setq local-counter (1+ local-counter)))))
+           (setq global-counter (1+ global-counter))))
+       list)
+
+(defun lsp-symbol-outline--create-buffer ()
+       "Create and return a buffer for inserting the LSP symbol outline."
+       (get-buffer-create
+        (format "*%s-outline*"
+                (file-name-sans-extension (buffer-name)))))
+
+(defun lsp-symbol-outline--print-indentation (item)
+       "Loop that prints space :depth number of times. Indentation implies
+hierarchy."
+       (let ((x 0))
+         (while (< x
+                   (* (plist-get item :depth) 2))
+           (progn (insert " ") (setq x (1+ x))))))
+
+(defun lsp-symbol-outline--print-symbol-icon-gui (item)
+       "Inserts the gui version of glyph icon for symbol. Glyphs use
+atomicons.ttf font. May appear in source code as the wrong glyps or unicode
+placeholders. Outputted correctly when face set."
+       (cond
+        ((equal (plist-get item :kind) 2)  ;Module
+         (insert (propertize " "
+                             'face 'lsp-symbol-outline-atom-icons-face
+                             'font-lock-ignore 't)))
+        ((equal (plist-get item :kind) 5)  ;Class
+         (insert (propertize " "
+                             'face 'lsp-symbol-outline-atom-icons-face
+                             'font-lock-ignore 't)))
+        ((equal (plist-get item :kind) 6)  ;Method
+         (insert (propertize " "
+                             'face 'lsp-symbol-outline-atom-icons-face
+                             'font-lock-ignore 't)))
+        ((equal (plist-get item :kind) 12) ;Function
+         (insert (propertize " "
+                             'face 'lsp-symbol-outline-atom-icons-face
+                             'font-lock-ignore 't)))
+        ((equal (plist-get item :kind) 13) ;Variable
+         (insert (propertize " "
+                             'face 'lsp-symbol-outline-atom-icons-face
+                             'font-lock-ignore 't)))
+        ((equal (plist-get item :kind) 14) ;Constant
+         (insert (propertize " "
+                             'face 'lsp-symbol-outline-atom-icons-face
+                             'font-lock-ignore 't)))
+        ((equal (plist-get item :kind) 18) ;Array
+         (insert (propertize " "
+                             'face 'lsp-symbol-outline-atom-icons-face
+                             'font-lock-ignore 't)))
+        (t
+         (insert (propertize " "     ;all other symbol types
+                             'face 'lsp-symbol-outline-atom-icons-face
+                             'font-lock-ignore 't)))))
+
+(defun lsp-symbol-outline--print-symbol-icon-term (item)
+       "Inserts the terminal version of icon for symbol. Uses standard ascii
+chars."
+       (cond
+        ((equal (plist-get item :kind) 2)  ;Module
+         (insert (propertize "M "
+                             'face 'lsp-symbol-outline-term-symbol-type-name-face
+                             'font-lock-ignore 't)))
+        ((equal (plist-get item :kind) 5)  ;Class
+         (insert (propertize "C "
+                             'face 'lsp-symbol-outline-term-symbol-type-name-face
+                             'font-lock-ignore 't)))
+        ((equal (plist-get item :kind) 6)  ;Method
+         (insert (propertize "m "
+                             'face 'lsp-symbol-outline-term-symbol-type-name-face
+                             'font-lock-ignore 't)))
+        ((equal (plist-get item :kind) 12) ;Function
+         (insert (propertize "F "
+                             'face 'lsp-symbol-outline-term-symbol-type-name-face
+                             'font-lock-ignore 't)))
+        ((equal (plist-get item :kind) 13) ;Variable
+         (insert (propertize "V "
+                             'face 'lsp-symbol-outline-term-symbol-type-name-face
+                             'font-lock-ignore 't)))
+        ((equal (plist-get item :kind) 14) ;Constant
+         (insert (propertize "K "
+                             'face 'lsp-symbol-outline-term-symbol-type-name-face
+                             'font-lock-ignore 't)))
+        ((equal (plist-get item :kind) 18) ;Array
+         (insert (propertize "A "
+                             'face 'lsp-symbol-outline-term-symbol-type-name-face
+                             'font-lock-ignore 't)))
+        (t
+         (insert (propertize "* "       ;all other symbol types
+                             'face 'lsp-symbol-outline-term-symbol-type-name-face
+                             'font-lock-ignore 't)))))
+
+(defun lsp-symbol-outline--move-point-to-symbol (item buf)
+       "Returns a function that moves the point and focus to symbol location in
+original document buffer."
+       `(lambda (x)
+          (switch-to-buffer-other-window ,buf)
+          (goto-line ,(plist-get item :symbol-start-line))
+          (move-to-column ,(plist-get item :column))))
+
+(defun lsp-symbol-outline--print-button (item buf)
+       "Print the button that handles the `lsp-symbol-outline-show-docstring-tip'
+and `lsp-symbol-outline--move-point-to-symbol' functionality. Docstring
+function is handled by letter 'd' - 100 in ascii."
+       (insert-button (plist-get item :name)
+                      'action (lsp-symbol-outline--move-point-to-symbol item buf)
+                      'keymap `(keymap (mouse-2 . push-button)
+                                       (100 . (lambda () (interactive)
+                                                (lsp-symbol-outline-show-docstring-tip
+                                                 ,(if (plist-get item :docs)
+                                                      (plist-get item :docs)
+                                                    nil)))))
+                      'face (cond
+                             ((and (plist-get item :docs)
+                                   (ignore-errors (not (string-empty-p
+                                                        (plist-get item :docs))))
+                                   (equal (plist-get item :kind) 12))
+                              'lsp-symbol-outline-function-face-has-doc)
+                             ((equal (plist-get item :kind) 12)
+                              'lsp-symbol-outline-function-face)
+                             ((and (plist-get item :docs)
+                                   (ignore-errors (not (string-empty-p
+                                                        (plist-get item :docs))))
+                                   (equal (plist-get item :kind) 6))
+                              'lsp-symbol-outline-function-face-has-doc)
+                             ((equal (plist-get item :kind) 6)
+                              'lsp-symbol-outline-function-face)
+                             ((and (plist-get item :docs)
+                                   (ignore-errors (not (string-empty-p
+                                                        (plist-get item :docs))))
+                                   (equal (plist-get item :kind) 5))
+                              'lsp-symbol-outline-class-face-has-doc)
+                             ((equal (plist-get item :kind) 5)
+                              'lsp-symbol-outline-class-face)
+                             (t
+                              'lsp-symbol-outline-var-face))))
+
+(defun lsp-symbol-outline-find-closest-cell (list current-line)
+       "Find the closest line to line that main LSP sym outline function called
+from. Return line number."
+  (cond ((ignore-errors
+           (+ 2 (progn
+                  (-elem-index
+                   (car
+                    (last
+                     (-filter
+                      (lambda (x) (< (plist-get x :symbol-start-line)
+                                     current-line))
+                      list)))
+                   list)))))
+        (t 1)))
+
+
+(defun lsp-symbol-outline--jump-paren ()
+       "Jump to the matching paren."
+       (cond ((eq 4 (car (syntax-after (point))))
+              (forward-sexp)
+              (forward-char -1))
+             ((eq 5 (car (syntax-after (point))))
+              (forward-char 1)
+              (backward-sexp))))
+
+(defun lsp-symbol-outline--set-arg-type-props (beg end)
+       "Set text-properties to sym outline arg type face."
+       (set-text-properties beg end
+                            '(face 'lsp-symbol-outline-arg-type-face)))
+
+(defun lsp-symbol-outline--set-arg-props-inv (beg end)
+       "Set text-properties to invisible."
+       (set-text-properties beg end
+                            '(invisible t)))
+
+(defun lsp-symbol-outline--set-arg-props-vis (beg end)
+       "Set text properties of args visible."
+       (set-text-properties beg end
+                            '(face lsp-symbol-outline-arg-face)))
+
+(defun lsp-symbol-outline--set-info-vis ()
+       "Search buffer for parens and set all found positions to visible
+text property."
+       (save-excursion
+         (goto-char (point-min))
+         (while (re-search-forward "(.+)" nil 'noerror 1)
+           (let ((ref (match-string-no-properties 1)))
+             (lsp-symbol-outline--set-arg-props-vis
+              (point)
+              (save-excursion
+                (forward-char -1)
+                (lsp-symbol-outline--jump-paren)
+                (point)))))))
+
+(defun lsp-symbol-outline--set-info-inv ()
+       "Search buffer for parens and set all found positions to invisible
+text property."
+       (save-excursion
+         (goto-char (point-min))
+         (while (re-search-forward "(.*)" nil 'noerror 1)
+           (lsp-symbol-outline--set-arg-props-inv
+            (point)
+            (save-excursion
+              (forward-char -1)
+              (lsp-symbol-outline--jump-paren)
+              (point))))))
+
+
+
+(defun lsp-symbol-outline--sort-by-category (list)
+       "Sort list of symbol plists by their :kind property.
+Returns list of plists."
+       (--sort (< (plist-get it :kind) (plist-get other :kind)) list))
+
+(defun lsp-symbol-outline-print-sorted ()
+       "Save current line data. Sort list of symbols by category. Call the
+function contained by `lsp-symbol-outline-print-sorted-func' to print an
+outline grouped by symbol kind. Call function that sets argument text properties.
+Set buffer local variable `lsp-symbol-outline-is-sorted' to t. Find saved line
+data."
+       (let ((line (nth 1 (s-match " +. \\(\\w+\\)"
+                                   (buffer-substring-no-properties
+                                    (line-beginning-position)
+                                    (line-end-position)))))
+             (list-sorted (lsp-symbol-outline--sort-by-category lsp-outline-list)))
+         (read-only-mode 0)
+         (erase-buffer)
+         (funcall lsp-symbol-outline-print-sorted-func list-sorted)
+         (beginning-of-buffer)
+         (forward-whitespace 2)
+         (funcall lsp-symbol-outline-args-props-func)
+         (setq-local lsp-symbol-outline-is-sorted t)
+         (read-only-mode 1)
+         (search-forward-regexp (format "%s\\((\\|$\\)" line) nil t)
+         (beginning-of-line-text)))
+
+(defun lsp-symbol-outline-print-sequential ()
+       "Reverse the grouping of symbols by kind and print a symbol outline in
+order of symbol appearance in source document."
+       (let ((l (nth 1
+                     (s-match " +. \\(\\w+\\)"
+                              (buffer-substring-no-properties
+                               (line-beginning-position) (line-end-position))))))
+         (read-only-mode 0)
+         (erase-buffer)
+         (funcall lsp-symbol-outline-print-func
+                  lsp-outline-list
+                  lsp-symbol-outline-src-buffer)
+         (funcall lsp-symbol-outline-args-props-func)
+         (setq-local lsp-symbol-outline-is-sorted nil)
+         (lsp-symbol-outline-go-top)
+         (read-only-mode 1)
+         (search-forward-regexp (format "%s\\((\\|$\\)" l) nil t)
+         (beginning-of-line-text)
+         (forward-to-word 1)))
+
+;;; The below function is stolen from misc-cmds.el as emacswiki packages
+;;; are no longer on melpa TODO implement own
+
+;;;###autoload
+(defun goto-longest-line (beg end)
+  "Go to the first of the longest lines in the region or buffer.
+If the region is active, it is checked.
+If not, the buffer (or its restriction) is checked.
+
+Returns a list of three elements:
+
+ (LINE LINE-LENGTH OTHER-LINES LINES-CHECKED)
+
+LINE is the first of the longest lines measured.
+LINE-LENGTH is the length of LINE.
+OTHER-LINES is a list of other lines checked that are as long as LINE.
+LINES-CHECKED is the number of lines measured.
+
+Interactively, a message displays this information.
+
+If there is only one line in the active region, then the region is
+deactivated after this command, and the message mentions only LINE and
+LINE-LENGTH.
+
+If this command is repeated, it checks for the longest line after the
+cursor.  That is *not* necessarily the longest line other than the
+current line.  That longest line could be before or after the current
+line.
+
+To search only from the current line forward, not throughout the
+buffer, you can use `C-SPC' to set the mark, then use this
+\(repeatedly)."
+  (interactive
+   (if (or (not mark-active)  (not (< (region-beginning) (region-end))))
+       (list (point-min) (point-max))
+     (if (< (point) (mark))
+         (list (point) (mark))
+       (list (mark) (point)))))
+  (when (and (not mark-active) (= beg end)) (error "The buffer is empty"))
+  (when (and mark-active (> (point) (mark))) (exchange-point-and-mark))
+  (when (< end beg) (setq end (prog1 beg (setq beg end))))
+  (when (eq this-command last-command)
+    (forward-line 1) (setq beg (point)))
+  (goto-char beg)
+  (when (eobp) (error "End of buffer"))
+  (cond ((<= end (save-excursion (goto-char beg) (forward-line 1) (point)))
+         (let ((inhibit-field-text-motion  t))  (beginning-of-line))
+         (when (and (> emacs-major-version 21) (require 'hl-line nil t))
+           (let ((hl-line-mode  t))  (hl-line-highlight))
+           (add-hook 'pre-command-hook #'hl-line-unhighlight nil t))
+         (let ((lineno  (line-number-at-pos))
+               (chars   (let ((inhibit-field-text-motion t))
+                          (save-excursion (end-of-line) (current-column)))))
+           (message "Only line %d: %d chars" lineno chars)
+           (let ((visible-bell  t))  (ding))
+           (setq mark-active  nil)
+           (list lineno chars nil 1)))
+        (t
+         (let* ((start-line                 (line-number-at-pos))
+                (max-width                  0)
+                (line                       start-line)
+                (inhibit-field-text-motion  t)
+                long-lines col)
+           (when (eobp) (error "End of buffer"))
+           (while (and (not (eobp)) (< (point) end))
+             (end-of-line)
+             (setq col  (current-column))
+             (when (>= col max-width)
+               (setq long-lines  (if (= col max-width)
+                                     (cons line long-lines)
+                                   (list line))
+                     max-width   col))
+             (forward-line 1)
+             (setq line  (1+ line)))
+           (setq long-lines  (nreverse long-lines))
+           (let ((lines  long-lines))
+             (while (and lines (> start-line (car lines))) (pop lines))
+             (goto-char (point-min))
+             (when (car lines) (forward-line (1- (car lines)))))
+           (when (and (> emacs-major-version 21) (require 'hl-line nil t))
+             (let ((hl-line-mode  t))  (hl-line-highlight))
+             (add-hook 'pre-command-hook #'hl-line-unhighlight nil t))
+           (when (interactive-p)
+             (let ((others  (cdr long-lines)))
+               (message "Line %d: %d chars%s (%d lines measured)"
+                (car long-lines) max-width
+                (concat
+                 (and others
+                      (format ", Others: {%s}" (mapconcat
+                                                (lambda (line) (format "%d" line))
+                                                (cdr long-lines) ", "))))
+                (- line start-line))))
+           (list (car long-lines) max-width (cdr long-lines) (- line start-line))))))
+
+(defun lsp-symbol-outline--find-longest-line ()
+       "Find the longest line in buffer."
        (save-excursion (goto-longest-line (point-min)
                                           (point-max))
                        (end-of-line)
                        (ceiling (* 1.15 (1+ (current-column))))))
 
-(defun lsp-symbol-outline-create-buffer ()
-       (get-buffer-create
-        (format "*%s-outline*"
-                (file-name-sans-extension (buffer-name)))))
+; Interactive defuns
+
+;;;###autoload
+(defun lsp-symbol-outline-create-buffer-window (sym-end-handler
+                                                depth-handler
+                                                args-handler
+                                                docs-handler
+                                                tree-sort-handler
+                                                print-handler
+                                                print-sorted-handler
+                                                arg-props-handler
+                                                visibility-cycle-handler)
+       "Create and set-up the main LSP sym outline buffer. This is the
+entry-point for the functionality of lsp-sym-outline package. This function is a
+template to be called from language specific files, where relevant handler
+functions for each language will be passed in.
+
+Buffer is first checked for any changes since last call of this function by
+calculating md5. If no changes have occured bypass generating new symbol list
+and use old one instead."
+       (interactive)
+       (if (not lsp-mode)
+           (lsp-mode))
+
+       (let ((current-line (string-to-number (format-mode-line "%l")))
+             (lsp-outline-list
+              ;; Caching
+              (if (and (boundp 'buffer-hash-value)
+                       (equal buffer-hash-value
+                              (md5 (buffer-substring-no-properties (point-min)
+                                                                   (point-max)))))
+                  buffer-orig-lsp-outline-list
+                (funcall tree-sort-handler (lsp-symbol-outline--sort-list-by-index
+                                            (lsp-symbol-outline--create-symbols-list
+                                             sym-end-handler
+                                             depth-handler
+                                             args-handler
+                                             docs-handler)))))
+             (mod major-mode)
+             (buf (current-buffer))
+             (window (ignore-errors (split-window
+                                     (selected-window)
+                                     (- 0 (/ (frame-width) 6))
+                                     lsp-symbol-outline-window-position)))
+             (outline-buffer (lsp-symbol-outline--create-buffer)))
+
+         (setq-local buffer-orig-lsp-outline-list lsp-outline-list)
+         (setq-local buffer-hash-value
+                     (md5 (buffer-substring-no-properties (point-min)
+                                                          (point-max))))
+
+         (when window
+           (window--display-buffer outline-buffer window 'window nil t)
+           window)
+
+         (pop-to-buffer outline-buffer)
+         (erase-buffer)
+
+         (setq-local lsp-outline-buf-mode (symbol-name mod))
+
+         ;; print the outline
+         (funcall print-handler lsp-outline-list buf)
+         ;; color the arguments and types
+         (funcall arg-props-handler)
+         (lsp-symbol-outline-mode)
+
+         ;; Remove mode-line
+         (setq-local mode-line-format nil)
+         ;; Set initial visibility level of args
+         (setq-local lsp-symbol-outline-args-inv 0)
+         (setq-local lsp-outline-buf-mode (symbol-name mod))
+         (setq-local lsp-outline-list lsp-outline-list)
+         (setq-local lsp-symbol-outline-src-buffer buf)
+         ;; start buffer in hierarchical view, not sorted view
+         (setq-local lsp-symbol-outline-is-sorted nil)
+         ;; set the visibility cycling function
+         (setq-local lsp-symbol-outline-visibility-cycling-func
+                     visibility-cycle-handler)
+         ;; set the print function
+         (setq-local lsp-symbol-outline-print-func
+                     print-handler)
+         ;; set the print sorted function
+         (setq-local lsp-symbol-outline-print-sorted-func
+                     print-sorted-handler)
+         ;; set the arg text props function
+         (setq-local lsp-symbol-outline-args-props-func
+                     arg-props-handler)
+
+         ;; Outline mode for folding symbols
+         (outline-minor-mode 1)
+         (make-local-variable 'outline-regexp)
+         (setq outline-regexp "^\\ +[^ ]")
+
+         ;; Changing outline ellipsis from ... to +
+         (set-display-table-slot
+          standard-display-table
+          'selective-display
+          (let ((face-offset (* (face-id 'lsp-symbol-outline-button-face)
+                                (lsh 1 22))))
+            (vconcat (mapcar (lambda (c) (+ face-offset c)) " +"))))
+
+         ;; go to closest line that function was called from
+         (goto-line
+          (lsp-symbol-outline-find-closest-cell lsp-outline-list current-line))
+         (if (not (looking-at-p " *[^ ] "))
+             (forward-whitespace 1)
+           (forward-whitespace 2))
+
+         ;; HACK to stop window size jumping around
+         (setq window-size-fixed 'width)
+         (toggle-truncate-lines 1)))
+
+(defun lsp-symbol-outline-cycle-arg-vis ()
+       "Call the function returned by the buffer local variable
+`lsp-symbol-outline-visibility-cycling-func' to cycle the visibility of
+function arguments in outline buffer. Visibility can be in three states.
+1. Args and type information visible.
+2. Just args visible.
+3. No args visible.
+
+Funcall calls the function passed to and set by
+`lsp-symbol-outline-create-buffer-window' when setting up the sym outline
+buffer."
+       (interactive)
+       (funcall lsp-symbol-outline-visibility-cycling-func))
+
+(defun lsp-symbol-outline-toggle-sorted ()
+       "Toggle whether symbol outline is grouped by symbol kind."
+       (interactive)
+       (if lsp-symbol-outline-is-sorted
+           (lsp-symbol-outline-print-sequential)
+         (lsp-symbol-outline-print-sorted)))
+
+(defun lsp-symbol-outline-show-docstring-tip (doc)
+       "Show a summary of docstring in echo area if available."
+       (interactive)
+       (if doc
+           (message doc)))
+
+(defun lsp-symbol-outline-widen-to-widest-column ()
+       "Widen the window to the width of longest line in buffer."
+       (interactive)
+       (setq window-size-fixed nil)
+       (enlarge-window (- (lsp-symbol-outline--find-longest-line)
+                          (window-width (selected-window)))
+                       t)
+       (setq window-size-fixed 'width))
 
 (defun lsp-symbol-outline-up-scope ()
+       "Move up the hiearchy to symbol's parent."
        (interactive)
        (outline-up-heading 1 nil)
        (forward-whitespace 2))
 
 (defun lsp-symbol-outline-up-sibling ()
+       "Move up to previous symbol sibling."
        (interactive)
        (let ((indent (current-indentation)))
             (lsp-symbol-outline-previous-line)
@@ -181,1823 +886,119 @@
                    (lsp-symbol-outline-previous-line))))
 
 (defun lsp-symbol-outline-down-sibling ()
+       "Move down to next symbol sibling."
        (interactive)
        (let ((indent (current-indentation)))
-            (outline-next-line)
+            (outline-next-line)         ;FIXME does not work in sorted view
             (while (and (not (equal (current-indentation)
                                     indent))
                         (not (eobp)))
                    (outline-next-line))
             (forward-whitespace 2)))
 
-(defun lsp-symbol-outline-forward-sexp ()
-       (interactive)
-       (let ((indent (current-indentation)))
-            (forward-line 1)
-            (while (and (> (current-indentation) indent)
-                        (not (eobp)))
-                   (forward-line 1)
-                   (end-of-line))
-            (forward-line -1)
-            (end-of-line)))
-
 (defun lsp-symbol-outline-previous-line ()
+       "Go to previous symbol. Moves point to the beginning of symbol name."
        (interactive)
-       ;; (ignore-errors (previous-line))
        (vertical-motion -1)
-       ;; (forward-line -1)
-       ;; (beginning-of-line)
        (while (looking-at "$")
-         ;; (ignore-errors (previous-line))
               (vertical-motion -1))
-       ;; (beginning-of-line)
-       ;; (forward-whitespace 2)
        (if (not (looking-at-p " *[^ ] "))
            (forward-whitespace 1)
            (forward-whitespace 2)))
 
-(defun lsp-symbol-outline-next-line-my ()
-  (interactive)
-  ;; (forward-line 1)
-  ;; (evil-next-visual-line)
-  ;; (next-line)
-  (vertical-motion 1)
-  ;; (beginning-of-line)
-  (if (not (looking-at-p " *[^ ] "))
-      (forward-whitespace 1)
-    ;; (forward-to-word 2)
-      (forward-whitespace 2)))
-
-(defun lsp-symbol-outline-overlay-at-point-p ()
-       (ov-in 'invisible
-              t
-              (point)
-              (save-excursion (forward-line 1)
-                              (point))))
+(defun lsp-symbol-outline-next-line ()
+       "Go to next symbol. Moves point to the beginning of symbol name."
+       (interactive)
+       (vertical-motion 1)
+       (while (looking-at "$")
+         (vertical-motion 1))
+       (if (not (looking-at-p " *[^ ] "))
+           (forward-whitespace 1)
+           (forward-whitespace 2)))
 
 (defun lsp-symbol-outline-toggle-folding ()
+       "Fold the local tree at point. Hides symbols in scope below current
+symbol's."
        (interactive)
        (outline-cycle)
        (forward-whitespace 2))
 
 (defun lsp-symbol-outline-go-top ()
+       "Go to top of symbol outline tree."
        (interactive)
        (beginning-of-buffer)
        (forward-whitespace 2))
 
 (defun lsp-symbol-outline-go-to-bottom ()
+       "Go to bottom of symbol outline tree."
        (interactive)
-       (end-of-buffer )
+       (end-of-buffer)
        (vertical-motion -1)
        (forward-whitespace 2))
 
 (defun lsp-symbol-outline-peek ()
+       "Find location of symbol in source buffer but do not lose focus of symbol
+outline buffer."
        (interactive)
-       (let (;; (w (window-numbering-get-number))
-             (w (selected-window)))
+       (let ((w (selected-window)))
             (push-button)
-            (select-window w)
-         ;; (select-window-by-number w)
-            ))
+            (select-window w)))
 
-;;;###autoload
-(defun lsp-symbol-outline-create-buffer-window ()
-  (interactive)
-  (if (not lsp-mode)
-      (lsp-mode)
-    )
-  ;; (setq timing-var2 0.0)
-  (let ((current-line (string-to-number (format-mode-line "%l")))
-
-        (outline-list
-
-         ;; Caching
-
-         ;; (if (and (boundp 'buffer-hash-value) (equal buffer-hash-value
-         ;;                                             (md5 (buffer-substring-no-properties (point-min) (point-max)))))
-         ;;     buffer-orig-outline-list
-         ;;   (lsp-symbol-outline-tree-sort (lsp-symbol-outline-sort-list (lsp-symbol-outline-get-symbols-list)) 0))
-
-         (progn
-          ;; (profiler-start 'cpu)
-           (my-new-func (lsp-symbol-outline-sort-list
-                         (lsp-symbol-outline-get-symbols-list))
-                        )
-          )
-         )
-
-
-        (mod major-mode)
-        (buf (current-buffer))
-        (window (ignore-errors (split-window
-                                ;; (frame-root-window)
-                                (selected-window)
-                                (- 0
-                                   (/ (frame-width) 6)) lsp-symbol-outline-window-position)))
-        (outline-buffer (lsp-symbol-outline-create-buffer))
-        )
-
-    ;; (profiler-report)
-    ;; (profiler-stop)
-
-    (setq-local buffer-orig-outline-list outline-list)
-    (setq-local buffer-hash-value (md5 (buffer-substring-no-properties (point-min) (point-max))))
-
-    (when window
-      (window--display-buffer outline-buffer window 'window nil t)
-      window)
-
-    (pop-to-buffer outline-buffer)
-    (erase-buffer)
-
-    (setq-local outline-buf-mode (symbol-name mod))
-    (lsp-symbol-outline-print-outline outline-list buf)
-
-    (if (equal mod 'java-mode)
-        (lsp-symbol-outline-source-to-final-java)
-     (lsp-symbol-outline-source-to-final))
-
-    (lsp-symbol-outline-mode)
-
-    (setq-local mode-line-format nil)
-
-    (setq-local inv 0)
-    (setq-local outline-buf-mode (symbol-name mod))
-    (setq-local outline-list outline-list)
-    (setq-local orig-buffer buf)
-    (setq-local sorted nil)
-
-    (outline-minor-mode 1)
-
-    (make-local-variable 'outline-regexp)
-    (setq outline-regexp "^\\ +[^ ]")
-
-    (set-display-table-slot
-     standard-display-table
-     'selective-display
-     (let ((face-offset (* (face-id 'lsp-symbol-outline-button-face) (lsh 1 22))))
-       (vconcat (mapcar (lambda (c) (+ face-offset c)) " +"))))
-
-    ;; (evil-goto-first-line)
-    ;; (forward-whitespace)
-    (goto-line (lsp-symbol-outline-find-closest-cell outline-list current-line))
-    (if (not (looking-at-p " *[^ ] "))
-        (forward-whitespace 1)
-      (forward-whitespace 2)
-      )
-    (setq window-size-fixed 'width)
-    (toggle-truncate-lines 1)
-    )
-  )
-
-
-(defun lsp-symbol-outline-find-closest-cell (list current-line)
-  (cond ((ignore-errors (+ 2 (progn
-                 (-elem-index (car (last (-filter (lambda (x) (< (plist-get x :symbol-start-line) current-line)) list))) list)))))
-        (t 1))
-  )
-
-(defun lsp-symbol-outline-lsp-get-document-symbols ()
-  (lsp--send-request
-   (lsp--make-request "textDocument/documentSymbol"
-                      `(:textDocument ,(lsp--text-document-identifier)))))
-
-
-;; (lsp--send-request
-;;  (lsp--make-request "textDocument/signatureHelp"
-;;                     '(:textDocument (:uri "file:///usr/local/lib/python3.5/dist-packages/pyls/python_ls.py") :position (:line  50 :character 19))
-;;                     ))
-
-;; (:textDocument (:uri "file:///usr/local/lib/python3.5/dist-packages/pyls/python_ls.py")) (:position (:line  46) (:character 9))
-
-;; (lsp--send-request (lsp--make-request
-;;                     "textDocument/hover"
-;;                     '(:textDocument (:uri "file:///usr/local/lib/python3.5/dist-packages/pyls/python_ls.py") :position (:line  51 :character 8))))
-
-
-
-
-
-(defun lsp-symbol-outline-tern ()
-  (let ((opening-paren 21797))
-    (tern-run-query (lambda (data)
-                      (let ((type (tern-parse-function-type data)))
-                        (when type
-                          (setf tern-last-argument-hints (cons opening-paren type))
-                          (tern-show-argument-hints))))
-                    `((type . "type")
-                      (preferFunction . t))
-                    opening-paren
-                    :silent)))
-
-
-
-
-
-
-(defun lsp-symbol-outline-tern-update-argument-hints (pos)
-  (let ( ll)
-    (tern-run-query (lambda (data)
-                      (let ((type (tern-parse-function-type data)))
-                        (when type
-                          (setf tern-last-argument-hints (cons pos type))
-                          (if data
-                              (progn
-                                (setq ll (lsp-symbol-outline-tern-show-argument-hints))
-                                (if (not ll)
-                                    (cl-destructuring-bind (name args ret) data
-                                      (setq ll args)
-                                      )
-                                  )
-                                )
-                            )
-                          ))
-                      )
-                    `((type . "type")
-                      (preferFunction . t))
-                    pos
-                    :silent)
-
-    (sleep-for 0 10 )
-
-    ll
-
-    )
-
-
-  )
-
-(defun lsp-symbol-outline-tern-show-argument-hints ()
-  (cl-destructuring-bind (paren . type) tern-last-argument-hints
-    (let ((parts ()) aaa
-          (current-arg (tern-find-current-arg paren)))
-      (cl-destructuring-bind (name args ret) type
-        (push (propertize name 'face 'font-lock-function-name-face) parts)
-        (push "(" parts)
-        (setq aaa args)
-        (cl-loop for arg in args for i from 0 do
-                 (unless (zerop i) (push ", " parts))
-                 (let ((name (or (car arg) "?")))
-                   (push (if (eq i current-arg) (propertize name 'face 'highlight) name) parts))
-                 (unless (equal (cdr arg) "?")
-                   (push ": " parts)
-                   (push (propertize (cdr arg) 'face 'font-lock-type-face) parts)))
-        (push ")" parts)
-        (when ret
-          (push " -> " parts)
-          (push (propertize ret 'face 'font-lock-type-face) parts)))
-      (let (message-log-max)
-        (tern-message (apply #'concat (nreverse parts))))
-      aaa
-      )))
-
-
-(require 'deferred)
-
-(defun lsp-symbol-outline-jump-paren ()
-    "Go to the matching paren."
-    (cond ((eq 4 (car (syntax-after (point))))
-           (forward-sexp)
-           (forward-char -1))
-          ((eq 5 (car (syntax-after (point))))
-           (forward-char 1)
-           (backward-sexp))
-          )
-  )
-
-(defun my-deferred-request ()
-  (let*
-      ((concatted-var)
-       (url-mime-charset-string nil)
-       (url-request-method "POST")
-       (deactivate-mark nil)
-       (url-request-data (format
-                          "{\"query\":{\"end\":%s,\"file\":\"%s\",\"type\":\"type\",\"preferFunction\":true}}"
-                          196 (buffer-file-name)))
-       (url-show-status nil)
-       (url (url-parse-make-urlobj "http" nil nil tern-server tern-known-port "/" nil nil nil))
-       (url-current-object url))
-  (deferred:$
-    (deferred:parallel
-      (deferred:url-retrieve url)
-      (deferred:url-retrieve url)
-      (deferred:url-retrieve url)
-      )
-    (deferred:nextc it (lambda (buffers)
-                         (cl-loop for i in buffers
-                                  do
-                                  (with-current-buffer i
-                                    (push (alist-get 'type
-                                                (json-read-from-string (car (s-match "{.*}" (buffer-substring-no-properties
-                                                                                             (point-min) (point-max))))))
-                                          concatted-varrr
-                                          )))
-                         )))
-  ;; concatted-var
-  ))
-
-(defun my-lsp-make-request-deferred-new ()
-  (let ((nd (deferred:new #'identity)))
-    (lsp--send-request-async (lsp--make-request
-                              "textDocument/hover"
-                              `(:textDocument (:uri "file:///usr/local/lib/python3.6/dist-packages/pyls/python_ls.py")
-                                              :position
-                                              (:line
-                                               16
-                                               :character 13)))
-                             (lambda (x) (deferred:callback-post nd x) )
-                             )
-    nd))
-
-(defun my-lsp-make-request-deferred-new ()
-  (let ((nd (deferred:new #'identity)))
-    (deferred:callback-post nd (lsp--send-request (lsp--make-request
-                                                   "textDocument/hover"
-                                                   `(:textDocument (:uri "file:///usr/lib/erlang/lib/jinterface-1.8/java_src/com/ericsson/otp/erlang/AbstractConnection.java")
-                                         :position
-                                         (:line
-                                          147
-                                          :character 30)))
-                        ))
-    nd))
-
-;; (setq-local alist-var nil)
-;; (push '(another . lol) alist-var)
-;; (alist-get )
-
-(defun lsp-callback-func (x &rest args)
-  ;; (message (gethash "value" (car (gethash "contents" x))))
-  ;; x
-  )
-
-
-
-(defun simple-lsp-hover-req-async ()
-  (lsp--send-request-async (lsp--make-request
-                           "textDocument/hover"
-                           `(:textDocument (:uri "file:///usr/lib/erlang/lib/jinterface-1.8/java_src/com/ericsson/otp/erlang/AbstractConnection.java")
-                                           :position
-                                           (:line
-                                            147
-                                            :character 30)))
-                           ;; #'intern
-                           (lambda (x) (message "HELLO"))
-                          ))
-
-;; (message (gethash "value" (car (gethash "contents" (lsp--send-request (lsp--make-request
-;;                                                                "textDocument/hover"
-;;                                                                `(:textDocument (:uri "file:///home/a/Dropbox/java_test_files/New_Text_Document.java")
-;;                                                                                :position
-;;                                                                                (:line
-;;                                                                                 557
-;;                                                                                 :character 39)))
-;;                                                               )))))
-
-;; (dotimes (i 603)
-;;   (simple-lsp-hover-req-async)
-;;   )
-
-;; (dotimes (i 603) (message
-;;                   (gethash "contents" (lsp--send-request (lsp--make-request
-;;                                        "textDocument/hover"
-;;                                        `(:textDocument (:uri "file:///usr/local/lib/python3.6/dist-packages/pyls/python_ls.py")
-;;                                                        :position
-;;                                                        (:line
-;;                                                         16
-;;                                                         :character 13)))))
-;;                   )
-;;          )
-
-
-;; (dotimes (i 603) (message (gethash "value" (car (gethash "contents"  (lsp--send-request (lsp--make-request
-;;                                       "textDocument/hover"
-;;                                       `(:textDocument (:uri "file:///usr/lib/erlang/lib/jinterface-1.8/java_src/com/ericsson/otp/erlang/AbstractConnection.java")
-;;                                                       :position
-;;                                                       (:line
-;;                                                        147
-;;                                                        :character 30)))
-;;                                      ;; (lambda (x) (message (gethash "value" (car (gethash "contents" x)))))
-;;                                      )))))
-;;          )
-
-
-
-(defun my-deferred-request--lsp ()
-  (let*
-      ((concatted-var ))
-  (deferred:$
-    (deferred:parallel
-
-      (my-lsp-make-request-deferred-new)
-      (my-lsp-make-request-deferred-new)
-      (my-lsp-make-request-deferred-new)
-
-      )
-    (deferred:nextc it (lambda (buffers)
-                         (cl-loop for i in buffers
-                                  do
-                                  (push (ignore-errors (gethash "value" (car (gethash "contents" i))))  concatted-varrr)
-                                  )
-                         ))
-    )
-  ;; concatted-var
-  )
-  )
-
-
-
-
-(defun lsp-symbol-outline-tern-request-sync (linenum)
-  (let* ((concatted-var)
-         (url-mime-charset-string nil)
-         (url-request-method "POST")
-         (deactivate-mark nil)
-         (url-request-data (format
-                            "{\"query\":{\"end\":%s,\"file\":\"%s\",\"type\":\"type\",\"preferFunction\":true}}"
-                            linenum
-                            (buffer-file-name)
-                            ))
-         (url-show-status nil)
-         (url (url-parse-make-urlobj "http" nil nil tern-server tern-known-port "/" nil nil nil))
-         (url-current-object url))
-    (alist-get 'type (json-read-from-string
-                      (with-current-buffer (url-retrieve-synchronously url)
-                        (car (s-match "{.*}" (buffer-substring-no-properties (point-min) (point-max)))))))
-    )
-  )
-
-
-
-
-(defun lsp-symbol-outline-get-symbols-list ()
-  ;; get name, kind, line and character info
-  ;; (setq timing-var 0.0)
-  (let ((agg-items ) (index 1))
-    (dolist (item (lsp-symbol-outline-lsp-get-document-symbols))
-      ;; (message "%s" (princ item))
-      (let ((ind-item ) )
-
-
-        ;; 0 INDEX
-        (setq ind-item (plist-put ind-item :index index))
-
-        ;; 1 - NAME
-        (setq ind-item (plist-put ind-item :name (replace-regexp-in-string "\(.+\)" "" (gethash "name" item))))
-
-        ;; (if (equal (plist-get (reverse ind-item) :name) "fulfilled")
-        ;;     (if
-        ;;         't
-        ;;         nil
-        ;;       nil)
-        ;;   nil
-        ;;   )
-
-        ;; 2 - KIND
-        (plist-put ind-item :kind (gethash "kind" item))
-
-        (if (and (or (equal (gethash "kind" item) 5) (equal (gethash "kind" item) 6) (equal (gethash "kind" item) 12)) (equal major-mode 'java-mode))
-            (progn
-              (save-excursion
-                (goto-line
-                 (1+ (gethash "line" (gethash "end" (gethash "range" (gethash "location" item)))))
-                )
-                (move-to-column
-                 (gethash "character" (gethash "end" (gethash "range" (gethash "location" item))))
-                 )
-
-                ;; (while (progn
-                ;;          (search-forward "{")
-                ;;          (backward-char)
-                ;;          (in-string-p)
-                ;;          )
-                ;;   )
-                (search-forward "{")
-                (backward-char)
-
-                ;; 2 - java func start range
-                (plist-put ind-item :symbol-start-line (1+ (gethash "line" (gethash "start" (gethash "range" (gethash "location" item))))))
-                (lsp-symbol-outline-jump-paren)
-                ;; 3 - java func end range
-                (plist-put ind-item :symbol-end-line (line-number-at-pos))
-
-                )
-              )
-
-            (progn
-              ;; 2 - var start range
-              (plist-put ind-item :symbol-start-line (1+ (gethash "line" (gethash "start" (gethash "range" (gethash "location" item))))))
-              ;; 3 - var end range
-              (plist-put ind-item :symbol-end-line (1+ (gethash "line" (gethash "end" (gethash "range" (gethash "location" item))))))
-             )
-          )
-
-        ;; 4 - DEPTH ?
-        ;; (plist-put ind-item :depth (pcase (gethash "depth" item) (`nil 0)))
-        (if (equal major-mode 'python-mode)
-            (progn
-             (plist-put ind-item :indent-depth
-                        (save-excursion
-                          (goto-line (plist-get ind-item :symbol-start-line))
-                          (/ (current-indentation) 4)
-                          )
-                        )
-             (if (ignore-errors (= (plist-get ind-item :indent-depth) (plist-get (car agg-items) :indent-depth)))
-                 (plist-put ind-item :depth (plist-get (car agg-items) :indent-depth))
-               (plist-put ind-item :depth
-                          (if (ignore-errors (> (plist-get ind-item :indent-depth) (plist-get (car agg-items) :indent-depth)))
-                          (1+ (plist-get (car agg-items) :indent-depth))
-                          (plist-get ind-item :indent-depth)
-                          )
-                          )
-                 )
-             )
-
-          (plist-put ind-item :depth 0))
-        ;; 5 - COLUMN
-        (plist-put ind-item :column (gethash "character" (gethash "start" (gethash "range" (gethash "location" item)))))
-
-
-        ;;debug
-
-
-
-        ;; get arguments and docstring
-
-        (if (or (equal 6 (plist-get ind-item :kind)) ;; (equal 5 (plist-get ind-item :depth))
-                (equal 12 (plist-get ind-item :kind))
-                (and (equal major-mode 'python-mode)
-                     (equal 5 (plist-get ind-item :kind)))
-                )
-
-            (plist-put ind-item :args (cond
-
-                   (
-                    (memq major-mode '(js-mode js2-mode))
-                    (let ((lk
-                           (lsp-symbol-outline-tern-request-sync
-                            (save-excursion
-                              (goto-line (plist-get ind-item :symbol-start-line))
-                                 (move-to-column (plist-get ind-item :column))
-
-                                 (search-forward "(")
-                                 (backward-char)
-
-                                 ;; 6 - js2 docstring
-                                 (save-excursion
-                                   (goto-line (1- (plist-get ind-item :symbol-start-line)))
-
-                                   (if (search-forward "*/" (line-end-position) t)
-                                       (plist-put ind-item :docs (progn
-                                         (search-backward "/**")
-                                         (forward-char 3)
-                                         (s-collapse-whitespace
-                                          (s-chop-prefix "\n"
-                                           (s-replace-regexp "/\\*\\*" ""
-                                            (s-replace-regexp " +\\* " ""
-                                             (buffer-substring-no-properties
-                                              (point)
-                                              (progn (forward-sentence) (point)))))))
-                                         ))
-                                     nil
-                                     ))
-
-
-                                 (1- (point))
-                                 )
-                       )
-                      ))
-                      ;; (replace-regexp-in-string ": [^ )\\|]+" "" lk )
-                      lk
-                      )
-                    ;; 7 - js2 args
-                    )
-
-
-
-                 (
-                    (equal major-mode 'java-mode)
-                    (let ((docs
-                           (save-excursion
-                             (goto-line (1- (plist-get ind-item :symbol-start-line)))
-
-                             (if (search-forward "*/" (line-end-position) t)
-                                 (progn
-                                   (search-backward "/**")
-                                   (forward-char 3)
-                                   ;; (forward-line 1)
-                                   ;; (s-replace-regexp " +\\* " "" (buffer-substring-no-properties (line-beginning-position) (line-end-position)))
-                                   (s-collapse-whitespace
-                                    (s-chop-prefix "\n"
-                                      (s-replace-regexp "<.+?>" ""
-                                       (s-replace-regexp "/\\*\\*" ""
-                                        (s-replace-regexp " +\\* " "" (thing-at-point 'sentence t))))))
-                                   )
-                               ))))
-                      (if docs
-                          ;; 6 java docstring
-                          (plist-put ind-item
-                                     :docs docs
-                                     )
-                        (plist-put ind-item :docs nil)
-                        )
-
-                      ;; 7 java args
-
-                      (let ((arg (save-excursion
-                               (goto-line (plist-get ind-item :symbol-start-line))
-                               (search-forward "(" (line-end-position) t)
-                               (buffer-substring-no-properties
-                                (progn (forward-char -1) (point))
-                                (progn (forward-sexp) (point)))
-                               )))
-                        (if (equal arg "()") nil (s-collapse-whitespace arg))
-                        )
-
-                    )
-                    )
-
-                 (
-                  (equal major-mode 'python-mode)
-
-                  (progn
-                    (let ((contts
-                           (save-excursion
-                             (goto-line (plist-get ind-item :symbol-start-line))
-                             (forward-line 1)
-                             (if
-                                 (search-forward "\"\"\"" (line-end-position) t)
-                                 (s-collapse-whitespace
-                                  (s-chop-prefix "\n" (buffer-substring-no-properties
-                                                       (point)
-                                                       (progn (forward-sentence) (point)))))
-                             )
-                             )
-                           ))
-
-                      ;; 6 python docstring
-                      (if contts
-                          (progn
-                            (plist-put ind-item
-                                       :docs contts
-                                       )
-                            )
-                        (plist-put ind-item :docs nil)
-                        )
-
-                      ;; 7 python args
-                      (let ((arg (save-excursion
-                                   (goto-line (plist-get ind-item :symbol-start-line))
-                                   (search-forward "(" (line-end-position) t)
-                                   (buffer-substring-no-properties
-                                    (progn (forward-char -1) (point))
-                                    (progn (forward-sexp) (point)))
-                                   )))
-                        (if (equal arg "()") nil (s-collapse-whitespace arg))
-                        )
-                      )
-                    )
-
-                    )
-
-                   )
-                  )
-
-          (progn
-
-            ;; 6 nil docs for vars
-            (plist-put ind-item :docs nil)
-
-            ;; 7 nil args for vars
-            (plist-put ind-item :args nil)
-            )
-
-          )
-
-        ;; 8 DEPTH?
-        ;; (if (gethash "depth" item) (push `(python-depth ,(gethash "depth" item)) ind-item)  (push '(python-depth nil) ind-item))
-
-        (setq index (1+ index))
-        (push ind-item agg-items)
-        )
-      )
-    (reverse agg-items)
-    )
-  )
-
-;; list of kind associations
-;; '((1 . "File")
-;;  (2 . "Module")
-;;  (3 . "Namespace")
-;;  (4 . "Package")
-;;  (5 . "Class")
-;;  (6 . "Method")
-;;  (7 . "Property")
-;;  (8 . "Field")
-;;  (9 . "Constructor"),
-;;  (10 . "Enum")
-;;  (11 . "Interface")
-;;  (12 . "Function")
-;;  (13 . "Variable")
-;;  (14 . "Constant")
-;;  (15 . "String")
-;;  (16 . "Number")
-;;  (17 . "Boolean")
-;;  (18 . "Array"))
-
-
-(defun lsp-symbol-outline-show-docstring-tip (item)
-  (interactive)
-  (if item
-      ;; (if (window-system)
-      ;;     (pos-tip-show item nil nil nil 2)
-      ;;   (message item)
-      ;;   )
-      (message item)
-    )
-  )
-
-(defun lsp-symbol-outline-print-outline (list buf)
-  (dolist (item list)
-    ;;   (and
-    ;;    (save-excursion
-    ;;      (vertical-motion -1)
-    ;;      (looking-at (format " %s" (make-string (* 4 (truncate (plist-get item :depth))) 32)) )
-    ;;      )
-    ;;    (save-excursion
-
-    ;;      (search-forward "(" (line-end-position) t 1)
-    ;;      (search-forward (format "%s" (plist-get item :name)) (line-end-position) t 1)
-    ;;      )
-    ;;    (or (equal (plist-get item :kind) 13) (equal (plist-get item :kind) 14))
-    ;;    )
-    ;; (delete item list)
-    (insert " ")
-    (let ((x 0)) (while (< x (* (plist-get item :depth) 2)) (progn (insert " ") (setq x (1+ x)))) )
-    (cond
-     ((equal (plist-get item :kind) 2)
-      (if window-system
-          (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-        (insert (propertize "M " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
-        )
-      )
-     ((equal (plist-get item :kind) 5)  (if window-system
-                                  (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize "C " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
-                                ))
-     ((equal (plist-get item :kind) 6)  (if window-system
-                                  (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize "m " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
-                                ))
-     ((equal (plist-get item :kind) 12) (if window-system
-                                  (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize "F " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
-                                ))
-     ((equal (plist-get item :kind) 13) (if window-system
-                                  (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize "V " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
-                                ))
-     ((equal (plist-get item :kind) 14) (if window-system
-                                  (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize "K " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
-                                ))
-     ((equal (plist-get item :kind) 18) (if window-system
-                                  (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize "A " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
-                                ))
-     (t (if window-system
-            (insert (propertize " " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-          (insert (propertize "* " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
-          ))
-     )
-    (insert-button (plist-get item :name) 'action `(lambda (x)
-                                         (switch-to-buffer-other-window ,buf)
-                                         (goto-line ,(plist-get item :symbol-start-line))
-                                         (move-to-column ,(plist-get item :column))
-                                         )
-
-                   'keymap `(keymap (mouse-2 . push-button)  (100 . (lambda () (interactive) (lsp-symbol-outline-show-docstring-tip
-                                                                                              ,(if (plist-get item :docs) (plist-get item :docs) nil))
-                                                                      )))
-
-
-                   'face (cond
-                          ((and (plist-get item :docs) (ignore-errors (not (string-empty-p (plist-get item :docs))))
-                                (equal (plist-get item :kind) 12)) 'lsp-symbol-outline-function-face-has-doc)
-                          ((equal (plist-get item :kind) 12) 'lsp-symbol-outline-function-face)
-                          ((and (plist-get item :docs) (ignore-errors (not (string-empty-p (plist-get item :docs))))
-                                (equal (plist-get item :kind) 6)) 'lsp-symbol-outline-function-face-has-doc)
-                          ((equal (plist-get item :kind) 6) 'lsp-symbol-outline-function-face)
-                          ((and (plist-get item :docs) (ignore-errors (not (string-empty-p (plist-get item :docs))))
-                                (equal (plist-get item :kind) 5)) 'lsp-symbol-outline-class-face-has-doc)
-                          ((equal (plist-get item :kind) 5) 'lsp-symbol-outline-class-face)
-                          (t 'lsp-symbol-outline-var-face)
-                          )
-
-
-                   )
-
-    ;; "int num - Test.main(...).Foo.bar(int, int)"
-
-    (if (plist-get item :args) (let ((arg-string
-                            (cond ((equal outline-buf-mode "java-mode")
-                                (ignore-errors (replace-regexp-in-string "\n" ""
-                                         (replace-regexp-in-string " -> .+" ""
-                                              (plist-get item :args)))))
-
-                                  ((equal outline-buf-mode "python-mode")
-                                   (car (s-match  "\(.+\)"
-                                    (s-collapse-whitespace
-                                     (replace-regexp-in-string "\n" ""
-                                      (replace-regexp-in-string " -> .+" ""
-                                                                (plist-get item :args)))))))
-                                  (t
-                                   (car (s-match  "\(.+?\)\)?"
-                                    (s-collapse-whitespace
-                                     (replace-regexp-in-string "\n" ""
-                                        (replace-regexp-in-string " -> .+" ""
-                                          (plist-get item :args)))))))
-                              )
-
-                                       ))
-
-                       (if arg-string
-                           (progn
-                             ;; (insert "\n")
-                             ;; (let ((x 0)) (while (< x (* (plist-get item :depth) 4)) (progn (insert " ") (setq x (1+ x)))) )
-                             (insert
-                              (propertize
-                               arg-string
-                               'face 'lsp-symbol-outline-arg-face 'font-lock-ignore 't))))))
-    (insert "\n")
-    )
-  )
-
-
-
-
-
-
-
-;;;; TOGGLE VISIBILITY
-
-;; non-html
-
-(defun lsp-symbol-outline-source-to-final-java ()
-  "Cut refs from the txt, but letting them appear as text properties."
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (re-search-forward ")" nil 'noerror 1)
-      ;; (kill-word -1)
-
-      (search-backward " " (line-beginning-position) t)
-      (lsp-symbol-outline-set-some-overlay-or-textproperty-here
-       (point)
-       (progn
-         (or (search-backward "," (line-beginning-position) t)
-             (search-backward "(" (line-beginning-position) t))
-         (+ (point) 1)
-         )
-       )
-      (while (save-excursion (or
-                              (search-backward "," (line-beginning-position) t)
-                              (search-backward "(" (line-beginning-position) t)))
-        (search-backward " " (line-beginning-position) t)
-        (lsp-symbol-outline-set-some-overlay-or-textproperty-here
-         (point)
-         (progn
-           (or (search-backward "," (line-beginning-position) t)
-               (search-backward "(" (line-beginning-position) t))
-           (+ (point) 1)
-           )
-         )
-        )
-      (vertical-motion 1)
-
-      )))
-
-(defun lsp-symbol-outline-set-arg-types-inv-java ()
-  "Cut refs from the txt, but letting them appear as text properties."
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (re-search-forward ")" nil 'noerror 1)
-      ;; (kill-word -1)
-
-      (search-backward " " (line-beginning-position) t)
-
-      (let ((p (point)) (e))
-        (cond ((search-backward "," (line-beginning-position) t)
-               (setq e (+ (point) 1)))
-              ((search-backward "(" (line-beginning-position) t)
-               (progn (setq e (+ (point) 1)) (setq p (1+ p))))
-              )
-
-        (when e (lsp-symbol-outline-set-arg-textproperty-inv
-          p e
-          )))
-
-      (while (save-excursion (or
-                              (search-backward "," (line-beginning-position) t)
-                              (search-backward "(" (line-beginning-position) t)))
-
-        (search-backward " " (line-beginning-position) t)
-
-        (let ((p (point)) (e))
-          (cond ((search-backward "," (line-beginning-position) t) (setq e (+ (point) 1)))
-                ((search-backward "(" (line-beginning-position) t) (progn (setq e (+ (point) 1)) (setq p (1+ p))))
-                )
-
-          (lsp-symbol-outline-set-arg-textproperty-inv
-           p e
-           ))
-        )
-      (vertical-motion 1)
-
-      )))
-
-
-(defun lsp-symbol-outline-source-to-final ()
-  "Cut refs from the txt, but letting them appear as text properties."
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (re-search-forward ":" nil 'noerror 1)
-      ;; (kill-word -1)
-      (let ((ref (match-string-no-properties 1)))
-        (lsp-symbol-outline-set-some-overlay-or-textproperty-here (1- (point))
-
-                                               (cond
-                                                ((looking-at " fn")
-                                                 (search-forward "(")
-                                                 (backward-char 1)
-                                                 (goto-char (plist-get (sp-get-sexp) :end))
-                                                 )
-                                                (
-                                                 )
-                                                ((looking-at " {")
-                                                 (search-forward "{")
-                                                 (backward-char 1)
-                                                 (lsp-symbol-outline-jump-paren)
-
-                                                 (if
-                                                     (looking-at ".|")
-                                                     (progn
-                                                       (forward-char 2)
-                                                       (cond ((lsp-symbol-outline-jump-paren)
-                                                              (point)
-                                                              )
-                                                             ((search-forward "," (line-end-position) t)
-                                                              (1- (point))
-                                                              )
-                                                             ((search-forward ")" (line-end-position) t)
-                                                              (1- (point))
-                                                              )
-                                                           )
-                                                      )
-                                                   (1+ (point))
-                                                     )
-
-                                                 )
-                                                (t (progn
-                                                     (backward-char 1)
-                                                     (if (re-search-forward ": .+?," (line-end-position) t 1)
-                                                         (1- (point))
-                                                       (re-search-forward ": .+?$" (line-end-position) t 1)
-                                                       (- (point) 1)
-                                                       )
-                                                     )))
-
-                                               ;; (cond
-                                               ;;                                        ((looking-back "{}" 2) (point))
-                                               ;;                                        ((looking-back "}" 1) (1- (point)))
-                                               ;;                                        ((looking-at ")") (point))
-                                               ;;                                        ((looking-back ":" 1) (forward-word 1) (point))
-                                               ;;                                        (t (1- (point)))
-                                               ;;                                        )
-                                               ;;                                       (save-excursion (search-backward " " nil t 1) (point))
-                                               )
-
-        ))))
-
-
-;; (replace-regexp-in-string ": [^ )\\|]+" "" lk )
-
-(defun lsp-symbol-outline-set-some-overlay-or-textproperty-here (beg end)
-  (set-text-properties beg end
-                       '(face 'lsp-symbol-outline-arg-type-face)
-                       ;; '(invisible t)
-                       ;; (propertize ,(buffer-substring-no-properties beg end) 'face 'font-lock-constant-face))
-                       ))
-
-
-
-(defun lsp-symbol-outline-set-arg-types-inv ()
-  "Cut refs from the txt, but letting them appear as text properties."
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (re-search-forward ":" nil 'noerror 1)
-      ;; (kill-word -1)
-      (let ((ref (match-string-no-properties 1)))
-        (lsp-symbol-outline-set-arg-textproperty-inv (1- (point))
-
-                                  (cond
-                                   ((looking-at " fn")
-                                    (search-forward "(")
-                                    (backward-char 1)
-                                    (goto-char (plist-get (sp-get-sexp) :end))
-                                    )
-                                   ((looking-at " {")
-                                    (search-forward "{")
-                                    (backward-char 1)
-                                    (lsp-symbol-outline-jump-paren)
-
-                                    (if
-                                                     (looking-at ".|")
-                                                     (progn
-                                                       (forward-char 2)
-                                                       (cond ((lsp-symbol-outline-jump-paren)
-                                                              (point)
-                                                              )
-                                                             ((search-forward "," (line-end-position) t)
-                                                              (1- (point))
-                                                              )
-                                                             ((search-forward ")" (line-end-position) t)
-                                                              (1- (point))
-                                                              )
-                                                           )
-                                                      )
-                                                   (1+ (point))
-                                                     )
-
-                                    )
-                                   (t (progn
-                                        (backward-char 1)
-                                        (if (re-search-forward ": .+?," (line-end-position) t 1)
-                                            (1- (point))
-                                          (re-search-forward ": .+?$" (line-end-position) t 1)
-                                          (- (point) 1)
-                                          )
-                                        )))
-
-                                  ;; (cond
-                                  ;;                                        ((looking-back "{}" 2) (point))
-                                  ;;                                        ((looking-back "}" 1) (1- (point)))
-                                  ;;                                        ((looking-at ")") (point))
-                                  ;;                                        ((looking-back ":" 1) (forward-word 1) (point))
-                                  ;;                                        (t (1- (point)))
-                                  ;;                                        )
-                                  ;;                                       (save-excursion (search-backward " " nil t 1) (point))
-                                  )
-
-        ))))
-
-
-
-
-
-
-
-;; (defun lsp-symbol-outline-set-arg-types-inv ()
-;;   "Cut refs from the txt, but letting them appear as text properties."
-;;   (interactive)
-;;   (save-excursion
-;;     (goto-char (point-min))
-;;     (while (re-search-forward ": \\([^ )]+\\)" nil 'noerror 1)
-;;       ;; (kill-word -1)
-;;       (let ((ref (match-string-no-properties 1)))
-;;         (lsp-symbol-outline-set-arg-textproperty-inv (cond
-;;                                    ((looking-back "{}" 2) (point))
-;;                                    ((looking-back "}" 1) (1- (point)))
-;;                                    ((looking-at ")") (point))
-;;                                    ((looking-back ":" 1) (forward-word 1) (point))
-;;                                    (t (1- (point)))
-;;                                    )
-;;                                                (save-excursion (search-backward ":" nil t 1) (point))
-;;                                                )
-
-;;         ))))
-
-
-
-(defun lsp-symbol-outline-set-arg-textproperty-inv (beg end)
-  ;; (let ((ovv (make-overlay beg end )))
-
-  ;; (overlay-put ovv 'invisible t)
-  ;; )
-  (set-text-properties beg end
-                       '(invisible t)
-                       ;; (propertize ,(buffer-substring-no-properties beg end) 'face 'font-lock-constant-face))
-                       )
-  )
-
-
-
-
-(defun lsp-symbol-outline-set-info-vis ()
-  "Cut refs from the txt, but letting them appear as text properties."
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (re-search-forward "(.+)" nil 'noerror 1)
-      ;; (kill-word -1)
-      (let ((ref (match-string-no-properties 1)))
-        (lsp-symbol-outline-set-properties-vis (point)
-                            (save-excursion
-                              ;; (search-backward "(" nil t 1)
-                              (forward-char -1)
-                              (lsp-symbol-outline-jump-paren)
-                              (point))
-                            )
-
-        ))))
-
-
-(defun lsp-symbol-outline-set-properties-vis (beg end)
-  (set-text-properties beg end
-                       '(face lsp-symbol-outline-arg-face)
-                       ;; (propertize ,(buffer-substring-no-properties beg end) 'face 'font-lock-constant-face))
-                       )
-  )
-
-
-
-(defun lsp-symbol-outline-set-info-inv ()
-  "Cut refs from the txt, but letting them appear as text properties."
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (re-search-forward "(.*)" nil 'noerror 1)
-      ;; (kill-word -1)
-      (lsp-symbol-outline-set-arg-textproperty-inv (point)
-                                (save-excursion
-                                  ;; (re-search-backward "(" nil t )
-                                  (forward-char -1)
-                                  (lsp-symbol-outline-jump-paren)
-                                  (point))
-                                ))))
-
-
-
-(defun lsp-symbol-outline-cycle-vis ()
-  (interactive)
-  (cond
-   ((member outline-buf-mode '("js-mode" "js2-mode" "java-mode"))
-    (cond
-     ((equal inv 0)
-      (read-only-mode 0)
-      (if (equal outline-buf-mode "java-mode")
-          (lsp-symbol-outline-set-arg-types-inv-java)
-       (lsp-symbol-outline-set-arg-types-inv))
-      (setq-local inv 1)
-      (read-only-mode 1)
-      )
-
-     ((equal inv 1)
-      (read-only-mode 0)
-      (lsp-symbol-outline-set-info-inv)
-      (setq-local inv 2)
-      (read-only-mode 1)
-      )
-
-     ((equal inv 2)
-      (read-only-mode 0)
-      (progn
-        (remove-list-of-text-properties (point-min) (point-max) '(invisible ))
-        (lsp-symbol-outline-set-info-vis)
-        (if (equal outline-buf-mode "java-mode")
-            (lsp-symbol-outline-source-to-final-java)
-         (lsp-symbol-outline-source-to-final))
-        )
-      (setq-local inv 0)
-      (read-only-mode 1)
-      )
-     ))
-
-   ((equal outline-buf-mode "python-mode")
-    (cond
-     ((equal inv 0)
-      (read-only-mode 0)
-      (lsp-symbol-outline-set-info-inv)
-      (setq-local inv 1)
-      (read-only-mode 1)
-      )
-
-     ((equal inv 1)
-      (read-only-mode 0)
-      (progn
-        (remove-list-of-text-properties (point-min) (point-max) '(invisible ))
-        (lsp-symbol-outline-set-info-vis)
-        (lsp-symbol-outline-source-to-final)
-        )
-      (setq-local inv 0)
-      (read-only-mode 1)
-      )
-     ))
-
-   ((equal outline-buf-mode "web-mode")
-    (cond
-     ((equal inv 0)
-      (read-only-mode 0)
-      (lsp-symbol-outline-set-classes-inv)
-      (setq-local inv 1)
-      (read-only-mode 1)
-      )
-
-     ((equal inv 1)
-      (read-only-mode 0)
-      (lsp-symbol-outline-set-html-info-inv)
-      (setq-local inv 2)
-      (read-only-mode 1)
-      )
-
-     ((equal inv 2)
-      (read-only-mode 0)
-      (progn
-        (remove-list-of-text-properties (point-min) (point-max) '(invisible ))
-        (lsp-symbol-outline-set-html-info-vis)
-        (lsp-symbol-outline-set-classes-normal)
-        )
-      (setq-local inv 0)
-      (read-only-mode 1)
-      )
-     ))
-
-   )
-  )
-
-
-(defun lsp-symbol-outline-set-classes-normal ()
-  "Cut refs from the txt, but letting them appear as text properties."
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (re-search-forward "\\..+$" nil 'noerror 1)
-      ;; (kill-word -1)
-      (let ((ref (match-string-no-properties 1)))
-        (lsp-symbol-outline-set-classes-textprop-normal (point)
-                                     (save-excursion
-                                       (search-backward "#" nil t)
-                                       (re-search-forward "\\." nil t)
-                                       (1- (point)))
-                                     )
-
-        ))))
-
-
-(defun lsp-symbol-outline-set-classes-textprop-normal  (beg end)
-  (set-text-properties beg end
-                       '(face font-lock-constant-face)
-                       )
-  )
-
-(defun lsp-symbol-outline-set-classes-inv ()
-  "Cut refs from the txt, but letting them appear as text properties."
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (re-search-forward "\\..+$" nil 'noerror 1)
-      ;; (kill-word -1)
-      (let ((ref (match-string-no-properties 1)))
-        (lsp-symbol-outline-set-classes-textprop-inv (point)
-                                  (save-excursion
-                                    (search-backward "" nil t)
-                                    (re-search-forward "\\." nil t)
-                                    (1- (point)))
-                                  )
-
-        ))))
-
-
-(defun lsp-symbol-outline-set-classes-textprop-inv  (beg end)
-  (set-text-properties beg end
-                       '(invisible t)
-                       )
-  )
-
-
-
-
-(defun lsp-symbol-outline-set-html-info-vis ()
-  "Cut refs from the txt, but letting them appear as text properties."
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (re-search-forward "#.+$" nil 'noerror 1)
-      ;; (kill-word -1)
-      (let ((ref (match-string-no-properties 1)))
-        (lsp-symbol-outline-set-properties-vis (point)
-                            (save-excursion (search-backward "#" nil t 1) (point))
-                            )
-
-        ))))
-
-
-(defun lsp-symbol-outline-set-properties-vis (beg end)
-  (set-text-properties beg end
-                       '(face lsp-symbol-outline-arg-face)
-                       ;; (propertize ,(buffer-substring-no-properties beg end) 'face 'font-lock-constant-face))
-                       )
-  )
-
-
-
-(defun lsp-symbol-outline-set-html-info-inv ()
-  "Cut refs from the txt, but letting them appear as text properties."
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (re-search-forward "#.+$" nil 'noerror 1)
-      ;; (kill-word -1)
-      (let ((ref (match-string-no-properties 1)))
-        (lsp-symbol-outline-set-arg-textproperty-inv (point)
-                                  (save-excursion (search-backward "#" nil t 1) (point))
-                                  )
-
-        ))))
-
-
-
-(defun lsp-symbol-outline-sort-by-category (list )
-
-  (--sort (< (plist-get it :kind) (plist-get other :kind)) list)
-
-  )
-
-
-(defun lsp-symbol-outline-print-fn-sorted (list)
-  (let ((headingt )
-        (types
-
-         '((1 . "File")
-           (2 . "Module")
-           (3 . "Namespace")
-           (4 . "Package")
-           (5 . "Class")
-           (6 . "Method")
-           (7 . "Property")
-           (8 . "Field")
-           (9 . "Constructor"),
-           (10 . "Enum")
-           (11 . "Interface")
-           (12 . "Function")
-           (13 . "Variable")
-           (14 . "Constant")
-           (15 . "String")
-           (16 . "Number")
-           (17 . "Boolean")
-           (18 . "Array"))
-
-         )
-
-        (contains-types (-distinct (-map (lambda (x) (plist-get x :kind)) outline-list-sorted)))
-
-        )
-
-    (dolist (l contains-types)
-      (let ((k (-filter (lambda (i) (equal (plist-get i :kind) l)) list)))
-        (cond
-     ((equal (plist-get (car k) :kind) 2)
-      (if window-system
-          (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-        (insert (propertize " M " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
-        )
-      )
-     ((equal (plist-get (car k) :kind) 5)  (if window-system
-                                  (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize " C " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
-                                ))
-     ((equal (plist-get (car k) :kind) 6)  (if window-system
-                                  (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize " m " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
-                                ))
-     ((equal (plist-get (car k) :kind) 12) (if window-system
-                                  (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize " F " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
-                                ))
-     ((equal (plist-get (car k) :kind) 13) (if window-system
-                                  (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize " V " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
-                                ))
-     ((equal (plist-get (car k) :kind) 14) (if window-system
-                                  (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize " K " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
-                                ))
-     ((equal (plist-get (car k) :kind) 18) (if window-system
-                                  (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-                                (insert (propertize " A " 'face 'LSP-SYMBOL-OUTLINE-TERM-SYMBOL-TYPE-NAME-FACe 'font-lock-ignore 't))
-                                ))
-     (t (if window-system
-            (insert (propertize "  " 'face 'lsp-symbol-outline-atom-icons-face 'font-lock-ignore 't))
-          (insert (propertize " * " 'face 'lsp-symbol-outline-term-symbol-type-name-face 'font-lock-ignore 't))
-          ))
-         )
-
-        (insert (if (equal (plist-get (car k) :kind) 5)
-                    (propertize (format "%ses\n" (alist-get (plist-get (car k) :kind) types)) 'face 'default)
-                  (propertize (format "%ss\n" (alist-get (plist-get (car k) :kind) types)) 'face 'default)
-                  )
-                )
-
-        (dolist (item k)
-          (insert (make-string 5 32))
-
-          (insert-button (plist-get item :name) 'action `(lambda (x)
-                                               (switch-to-buffer-other-window ,orig-buffer)
-                                         (goto-line ,(plist-get item :symbol-start-line))
-                                         (move-to-column ,(plist-get item :column))
-                                         )
-
-                   'keymap `(keymap (mouse-2 . push-button)  (100 . (lambda () (interactive) (lsp-symbol-outline-show-docstring-tip
-                                                                                              ,(if (plist-get item :docs) (plist-get item :docs) nil))
-                                                                      )))
-
-
-                   'face (cond
-                          ((and (plist-get item :docs) (ignore-errors (not (string-empty-p (plist-get item :docs))))
-                                (equal (plist-get item :kind) 12)) 'lsp-symbol-outline-function-face-has-doc)
-                          ((equal (plist-get item :kind) 12) 'lsp-symbol-outline-function-face)
-                          ((and (plist-get item :docs) (ignore-errors (not (string-empty-p (plist-get item :docs))))
-                                (equal (plist-get item :kind) 6)) 'lsp-symbol-outline-function-face-has-doc)
-                          ((equal (plist-get item :kind) 6) 'lsp-symbol-outline-function-face)
-                          ((and (plist-get item :docs) (ignore-errors (not (string-empty-p (plist-get item :docs))))
-                                (equal (plist-get item :kind) 5)) 'lsp-symbol-outline-class-face-has-doc)
-                          ((equal (plist-get item :kind) 5) 'lsp-symbol-outline-class-face)
-                          (t 'lsp-symbol-outline-var-face)
-                          )
-
-
-                   )
-
-          (if (plist-get item :args) (let ((arg-string
-                            (if (equal outline-buf-mode "java-mode")
-
-                                (ignore-errors (replace-regexp-in-string "\n" ""
-                                  (replace-regexp-in-string " -> .+" ""
-                                    (plist-get item :args))))
-
-                              (car (s-match  "\(.+?\)"
-                                                                   (replace-regexp-in-string "\n" ""
-                                                                     (replace-regexp-in-string " -> .+" ""
-                                                                              (plist-get item :args)))))
-                                           )
-
-                                       ))
-
-                       (if arg-string
-                           (progn
-                             ;; (insert "\n")
-                             ;; (let ((x 0)) (while (< x (* (plist-get :depth item) 4)) (progn (insert " ") (setq x (1+ x)))) )
-                             (insert
-                              (propertize
-                               arg-string
-                               'face 'lsp-symbol-outline-arg-face 'font-lock-ignore 't))))))
-          (insert "\n")
-          )
-
-        (insert " \t \n")
-
-        ))
-
-    )
-  (save-excursion
-    (end-of-buffer)
-    (set-mark (point))
-    (backward-char 4)
-    (delete-region (point) (mark))
-    )
-
-  (delete-trailing-whitespace)
-
-  )
-
-
-(defun lsp-symbol-outline-print-sorted ()
-  (let ((l (nth 1 (s-match " +. \\(\\w+\\)" (buffer-substring-no-properties (line-beginning-position) (line-end-position))))))
-  (setq-local outline-list-sorted (lsp-symbol-outline-sort-by-category outline-list))
-
-  (read-only-mode 0)
-  (erase-buffer)
-  (lsp-symbol-outline-print-fn-sorted outline-list-sorted)
-
-  (beginning-of-buffer)
-  (forward-whitespace 2)
-
-  (if (equal outline-buf-mode "java-mode")
-      (lsp-symbol-outline-source-to-final-java)
-    (lsp-symbol-outline-source-to-final)
-    )
-  (setq-local sorted t)
-  (read-only-mode 1)
-  (search-forward-regexp (format "%s\\((\\|$\\)" l) nil t)
-  (beginning-of-line-text)
-
-  )
-  )
-
-
-(defun lsp-symbol-outline-print-sequential ()
-
-  (let ((lk)
-        (l (nth 1
-                (s-match " +. \\(\\w+\\)"
-                         (buffer-substring-no-properties
-                          (line-beginning-position) (line-end-position))))))
-    (read-only-mode 0)
-    (erase-buffer)
-
-    (lsp-symbol-outline-print-outline outline-list orig-buffer)
-
-    (with-current-buffer orig-buffer
-      (if (equal major-mode 'js2-mode)
-          (setq lk t)
-        )
-      )
-
-    (if lk
-        (lsp-symbol-outline-source-to-final)
-      )
-
-    (setq-local sorted nil)
-    (lsp-symbol-outline-go-top)
-
-    (read-only-mode 1)
-    (search-forward-regexp (format "%s\\((\\|$\\)" l) nil t)
-    (beginning-of-line-text)
-    (forward-to-word 1)
-    )
-  )
-
-
-
-(defun lsp-symbol-outline-toggle-sorted ()
-  (interactive)
-  (if sorted
-      (lsp-symbol-outline-print-sequential)
-    (lsp-symbol-outline-print-sorted)
-    )
-  )
-
-
-;; (defun lsp-symbol-outline-mode-remove-python-func-args (list)
-;;   (let ((indices ))
-;;     (dolist (item list)
-;;       (if (plist-get item :args)
-;;           (let ((m (s-match "\(.+?\)"
-;;                             (replace-regexp-in-string "\n" "" (plist-get item :args))
-;;                             ;; (plist-get item :args)
-;;                             ))
-;;                 c
-;;                 )
-;;             (if m
-;;                 (progn
-;;                   (setq c (s-count-matches "," (car m)))
-;;                   (push (number-sequence (plist-get item :index)
-;;                                          (+ (plist-get item :index)
-;;                                             (if (equal c 0) 0 c)
-;;                                             )
-;;                                          1
-;;                                          ) indices)
-;;                   )
-;;               )
-;;             )
-;;         )
-;;       )
-;;     (setq indices (-flatten indices))
-;;     (setf list (-remove-at-indices
-;;                 indices
-;;                 list
-;;                 )))
-;;   )
-
-
-(defun my-new-func (list)
-  (let ((global-counter 0) (local-counter 0) (local-end 0) (list-length (length list)))
-    (if (equal major-mode 'python-mode)
-        ;; (setq list (lsp-symbol-outline-mode-remove-python-func-args list))
-        list
-      (while (< global-counter list-length)
-      ;; check if end-point (plist-get 'symbol-end-line) of current symbol greater than next symbol in list
-      (if (ignore-errors (> (plist-get (nth global-counter list) :symbol-end-line) (plist-get (nth (1+ global-counter) list) :symbol-end-line)))
-          ;; if it is > find the next symbol with end-point (plist-get :symbol-end-line) > than symbol at index global-counter
-          (let ((local-counter (1+ global-counter)))
-            (while (ignore-errors (> (plist-get (nth global-counter list) :symbol-end-line) (plist-get (nth local-counter list) :symbol-end-line)))
-              (setq local-counter (1+ local-counter))
-              )
-            (setq local-end local-counter)
-            (setq local-counter (1+ global-counter))
-            (while (< local-counter local-end)
-              (plist-put (nth local-counter list) :depth (1+ (plist-get (nth local-counter list) :depth)))
-              (setq local-counter (1+ local-counter))
-              )
-            )
-          )
-      (setq global-counter (1+ global-counter))
-      ))
-    )
-  list
-  )
-
-
-(defun lsp-symbol-outline-tree-sort-map (list)
-  (let ((split 0) (start 0))
-    (while (< start (length list))
-     (-map-indexed (lambda (it-index it)
-                     (if (if (eq (plist-get :symbol-end-line (nth (1+ it-index) (-drop start list))) nil)
-                             nil
-                           ;; compare end point of cell and 1+ cell
-                           (< (plist-get :symbol-end-line (nth (1+ it-index) (-drop start list))) (plist-get :symbol-end-line it)))
-                         (progn
-                           ;; first cell that has end line > than current cell becomes split
-                           (setq split
-                                 (let ((index (1+ it-index)) )
-                                   (while (equal split 0)
-                                     (if (< (if (eq nil (plist-get :symbol-end-line (nth index list)))
-                                                (1+ (plist-get :symbol-end-line (nth it-index list)))
-                                              (plist-get :symbol-end-line (nth index list))
-                                              )
-                                            (plist-get :symbol-end-line (nth it-index list))
-                                            )
-                                         (setq index (1+ index))
-                                       (setq split index)
-                                       )
-                                     )
-                                   split
-                                   )
-                                 )
-                           ;; increment depth for cells between it-index+1 and split
-                           (setq list
-                                 (let ((index (1+ it-index)))
-                                   (while (< index split)
-                                     ;; (-update-at 4 (lambda (x) (1+ x)) (nth index list))
-                                     (setf (plist-get :depth (nth index list)) (1+ (plist-get :depth (nth index list))))
-                                     (setq index (1+ index))
-                                     )
-                                   list
-                                   )
-                                 )
-                           )
-                       ))
-                   (-drop start list))
-     (setq start (1+ start))
-     )
-    )
-  list
-  )
-
-
-
-
-(defun lsp-symbol-outline-tree-sort (list start)
-  (let ((split 0) (indices ))
-    ;; is next cell's end line less than current cells? yes cont; no increment start, break
-
-    (if (equal major-mode 'python-mode)
-        (progn (dolist (item list)
-                 (if (plist-get item :args)
-                     (let ((m (s-match "\(.+?\)"
-                                       (replace-regexp-in-string "\n" "" (plist-get item :args))
-                                       ;; (plist-get item :args)
-                                       ))
-                           c
-                           )
-                       (if m
-                           (progn
-                             (setq c (s-count-matches "," (car m)))
-                             (push (number-sequence (plist-get item :index)
-                                                    (+ (plist-get item :index)
-                                                       (if (equal c 0) 0 c)
-                                                       )
-                                                    1
-                                                    ) indices)
-                             )
-                         )
-                       )
-                   )
-                 )
-               (setq indices (-flatten indices))
-               (setf list (-remove-at-indices
-                           indices
-                           list
-                           ))
-
-               )
-      )
-
-    ;; (if (equal (plist-get (nth start list) :name) "Board")
-    ;;     (if
-    ;;         't
-    ;;         nil
-    ;;       nil)
-    ;;   nil
-    ;;   )
-
-    (if (plist-get (nth start list) :python-depth)
-        (dolist (item list)
-          (setf (plist-get item :depth) (plist-get item :python-depth))
-          )
-
-      (if (if (eq (plist-get (nth (1+ start) list) :symbol-end-line) nil)
-              nil
-            (< (plist-get (nth (1+ start) list) :symbol-end-line) (plist-get (nth start list) :symbol-end-line))
-            )
-          (progn
-            ;; first cell that has end line > than current cell becomes split
-            (setq split
-                  (let ((index (1+ start)))
-                    (while (equal split 0)
-                      (if (< (if (eq nil (plist-get (nth index list) :symbol-end-line))
-                                 (1+ (plist-get (nth start list) :symbol-end-line))
-                               (plist-get (nth index list) :symbol-end-line)
-                               )
-                             (plist-get (nth start list) :symbol-end-line)
-                             )
-                          (setq index (1+ index))
-                        (setq split index)
-                        )
-                      )
-                    split
-                    )
-                  )
-            ;; increment depth for cells between start+1 and split
-            (setq list
-                  (let ((index (1+ start)))
-                    (while (< index split)
-                      ;; (-update-at 4 (lambda (x) (1+ x)) (nth index list))
-                      (setf (plist-get (nth index list) :depth) (1+ (plist-get (nth index list) :depth)))
-                      (setq index (1+ index))
-                      )
-                    list
-                    )
-                  )
-
-            ;; call lsp-symbol-outline-tree-sort with start set to start+1
-            (lsp-symbol-outline-tree-sort list (1+ start))
-
-            )
-        ;; call lsp-symbol-outline-tree-sort with new start
-        (if (eq (plist-get (nth (1+ start) list) :symbol-end-line) nil)
-            list
-          (lsp-symbol-outline-tree-sort list (1+ start))
-          )
-        )
-      )
-    list
-    )
-  )
-
-
-
-(defun lsp-symbol-outline-sort-list (list)
-  (--sort (< (plist-get it :symbol-start-line) (plist-get other :symbol-start-line))  list))
-
-
-
-
-
-;; documentation and popup
-
-;; (popup-tip "test" )
-
-
-
-;; (defun outline-check-mode-imenu ()
-;;   (interactive)
-;;   ;; (profiler-start 'cpu)
-;;   (cond ((or (equal major-mode 'python-mode) (equal major-mode 'js2-mode)
-;;              (equal major-mode 'typescript-mode) (equal major-mode 'java-mode))
-;;          (lsp-symbol-outline-create-buffer-window))
-;;         ((equal major-mode 'web-mode) (outline-create-html-window))
-;;         (t (imenu-list-minor-mode))
-;;         )
-;;   ;; (profiler-report)
-;;   ;; (profiler-stop)
-;;   )
-
-;; (setq lsp-symbol-outline-mode-hook nil)
 
 ;; Keybindings
 
-(define-key lsp-symbol-outline-mode-map (kbd "j") #'lsp-symbol-outline-next-line-my)
-(define-key lsp-symbol-outline-mode-map (kbd "k") #'lsp-symbol-outline-previous-line)
-(define-key lsp-symbol-outline-mode-map (kbd "<tab>") #'outline-hide-sublevels)
-(define-key lsp-symbol-outline-mode-map (kbd "<backtab>") #'outline-show-all)
-(define-key lsp-symbol-outline-mode-map (kbd "f") #'lsp-symbol-outline-toggle-folding)
-(define-key lsp-symbol-outline-mode-map (kbd "q") #'kill-buffer-and-window)
-(define-key lsp-symbol-outline-mode-map (kbd "gg") #'lsp-symbol-outline-go-top)
-(define-key lsp-symbol-outline-mode-map (kbd "G") #'lsp-symbol-outline-go-to-bottom)
-(define-key lsp-symbol-outline-mode-map (kbd "o") #'push-button)
-(define-key lsp-symbol-outline-mode-map (kbd "i") #'lsp-symbol-outline-cycle-vis)
-(define-key lsp-symbol-outline-mode-map (kbd "gh") #'lsp-symbol-outline-up-scope)
-(define-key lsp-symbol-outline-mode-map (kbd "gk") #'lsp-symbol-outline-up-sibling)
-(define-key lsp-symbol-outline-mode-map (kbd "gj") #'lsp-symbol-outline-down-sibling)
-(define-key lsp-symbol-outline-mode-map (kbd "w") #'lsp-symbol-outline-widen-to-widest-column)
-(define-key lsp-symbol-outline-mode-map (kbd "s") #'lsp-symbol-outline-toggle-sorted)
-(define-key lsp-symbol-outline-mode-map (kbd "l") #'lsp-symbol-outline-peek)
-(define-key lsp-symbol-outline-mode-map (kbd "d") #'lsp-symbol-outline-show-docstring-tip)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "j")
+            #'lsp-symbol-outline-next-line)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "k")
+            #'lsp-symbol-outline-previous-line)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "TAB")
+            #'outline-hide-sublevels)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "<backtab>")
+            #'outline-show-all)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "f")
+            #'lsp-symbol-outline-toggle-folding)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "q")
+            #'kill-buffer-and-window)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "gg")
+            #'lsp-symbol-outline-go-top)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "G")
+            #'lsp-symbol-outline-go-to-bottom)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "o")
+            #'push-button)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "i")
+            #'lsp-symbol-outline-cycle-arg-vis)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "gh")
+            #'lsp-symbol-outline-up-scope)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "gk")
+            #'lsp-symbol-outline-up-sibling)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "gj")
+            #'lsp-symbol-outline-down-sibling)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "w")
+            #'lsp-symbol-outline-widen-to-widest-column)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "s")
+            #'lsp-symbol-outline-toggle-sorted)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "l")
+            #'lsp-symbol-outline-peek)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "d")
+            #'lsp-symbol-outline-show-docstring-tip)
 
-(set-face-attribute 'lsp-symbol-outline-button-face nil :foreground "#93a0b2")
 
 (provide 'lsp-symbol-outline)
 
