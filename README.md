@@ -11,12 +11,9 @@ This is both my first ever emacs package and an extremely early version of this 
 My goal is to publish this on melpa some day which will auto-install dependencies, however for now you must have these packages installed:
 
 * lsp-mode
-* ov
-* request
 * outline-magic
 * s
 * dash
-* misc-cmds
 
 (optionally, install for languages you use)
 * lsp-java
@@ -41,33 +38,26 @@ You must also enable LSP when opening buffers in which you want to use the symbo
 **Javascript special instructions:**
 You must have the tern package installed and a .tern-project file in the root of your project. You must have the tern package enabled.
 
-**Python special instructions:**
-To infer hierarchy this package currently uses the following hack (please someone suggest an alternative for this).
-
-The following code has been added to this implementation https://github.com/palantir/python-language-server of the python language server:
-
-(in symbols.py of pyls package)
-```python
-9  + def parse_depth(string):
-10 +   spcCount = len(string)-len(string.lstrip(' '))
-11 +   return spcCount / 4
-
-14   @hookimpl
-15   def pyls_document_symbols(config, document):
-16      all_scopes = config.plugin_settings('jedi_symbols').get('all_scopes', True)
-17      definitions = document.jedi_names(all_scopes=all_scopes)
-18      return [{
-19          'name': d.name,
-20          'kind': _kind(d),
-21          'location': {'uri': document.uri, 'range': _range(d)},
-22 +        'depth': parse_depth(d.get_line_code())
-23      } for d in definitions]
-```
-Without the above hack, there is no current way to infer hierarchy for symbols in python using lsp.
-
 ## Usage
 
-Bind the function `(lsp-symbol-outline-create-buffer-window)` or call it from `M-:`.
+Bind one of the following functions, or call  from `M-:`:
+`(lsp-symbol-outline-make-outline-python)`
+`(lsp-symbol-outline-make-outline-js)`
+`(lsp-symbol-outline-make-outline-java)`
+OR use the following convenience function:
+```
+(defun lsp-symbol-outline-create-conditional ()
+    (interactive)
+    (cond ((equal major-mode 'python-mode)
+           (lsp-symbol-outline-make-outline-python))
+          ((or (equal major-mode 'js2-mode)
+               (equal major-mode 'js-mode)
+               (equal major-mode 'typescript-mode))
+           (lsp-symbol-outline-make-outline-js))
+          ((equal major-mode 'java-mode)
+           (lsp-symbol-outline-make-outline-java))))
+```
+
 Underlined symbols have documentation.
 
 ## Key Bindings
