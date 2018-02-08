@@ -27,8 +27,6 @@
 ;;; Commentary:
 
 ;;
-;; Call (lsp-symbol-outline-create-buffer-window) to enable.
-;;
 ;;  TODO:
 ;;
 ;;  - Refactor
