@@ -290,3 +290,9 @@ functions. Creates LSP sym ouline buffer."
         #'lsp-symbol-outline--print-outline-sorted-js
         #'lsp-symbol-outline--finalize-arg-props-js
         #'lsp-symbol-outline--cycle-arg-visibility-js))
+
+
+
+(provide 'lsp-symbol-outline-javascript-typescript)
+
+;;; lsp-symbol-outline-javascript-typescript.el ends here

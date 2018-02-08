@@ -216,32 +216,6 @@ Returns arg string based on whether it is empty or not."
            ("()" nil)
            (SYMBOL (s-collapse-whitespace SYMBOL)))))
 
-
-;; FOR REFERENCE ONLY
-;; -------------------------
-;; Alist of kind associations for working with hash table returned by
-;; lsp-symbol-outline--lsp-get-document-symbols. Kind can be accessed
-;; by calling (gethash "kind" X) on individual symbol hash-table.
-;; '((1  . "File")
-;;   (2  . "Module")
-;;   (3  . "Namespace")
-;;   (4  . "Package")
-;;   (5  . "Class")
-;;   (6  . "Method")
-;;   (7  . "Property")
-;;   (8  . "Field")
-;;   (9  . "Constructor")
-;;   (10 . "Enum")
-;;   (11 . "Interface")
-;;   (12 . "Function")
-;;   (13 . "Variable")
-;;   (14 . "Constant")
-;;   (15 . "String")
-;;   (16 . "Number")
-;;   (17 . "Boolean")
-;;   (18 . "Array"))
-
-
 (defun lsp-symbol-outline--create-symbols-list (sym-end-handler
                                                 depth-handler
                                                 args-handler
@@ -502,7 +476,7 @@ function is handled by letter 'd' - 100 in ascii."
                              (t
                               'lsp-symbol-outline-var-face))))
 
-(defun lsp-symbol-outline-find-closest-cell (list current-line)
+(defun lsp-symbol-outline--find-closest-cell (list current-line)
        "Find the closest line to line that main LSP sym outline function called
 from. Return line number."
   (cond ((ignore-errors
@@ -516,7 +490,6 @@ from. Return line number."
                       list)))
                    list)))))
         (t 1)))
-
 
 (defun lsp-symbol-outline--jump-paren ()
        "Jump to the matching paren."
@@ -568,8 +541,6 @@ text property."
               (forward-char -1)
               (lsp-symbol-outline--jump-paren)
               (point))))))
-
-
 
 (defun lsp-symbol-outline--sort-by-category (list)
        "Sort list of symbol plists by their :kind property.
@@ -822,7 +793,7 @@ and use old one instead."
 
          ;; go to closest line that function was called from
          (goto-line
-          (lsp-symbol-outline-find-closest-cell lsp-outline-list current-line))
+          (lsp-symbol-outline--find-closest-cell lsp-outline-list current-line))
          (if (not (looking-at-p " *[^ ] "))
              (forward-whitespace 1)
            (forward-whitespace 2))

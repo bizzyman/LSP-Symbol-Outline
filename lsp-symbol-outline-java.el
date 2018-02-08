@@ -278,3 +278,8 @@ functions. Creates LSP sym ouline buffer."
    #'lsp-symbol-outline--finalize-arg-props-java
    #'lsp-symbol-outline--cycle-arg-visibility-java))
 
+
+
+(provide 'lsp-symbol-outline-java)
+
+;;; lsp-symbol-outline-java.el ends here

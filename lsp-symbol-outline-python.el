@@ -218,3 +218,9 @@ functions. Creates LSP sym ouline buffer."
         #'lsp-symbol-outline--print-outline-sorted-python
         (lambda () nil) ;??? don't run
         #'lsp-symbol-outline--cycle-arg-visibility-python))
+
+
+
+(provide 'lsp-symbol-outline-python)
+
+;;; lsp-symbol-outline-python.el ends here
