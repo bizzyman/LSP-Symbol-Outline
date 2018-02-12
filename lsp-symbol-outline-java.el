@@ -110,7 +110,7 @@ Iterates over symbol list. Java specific argument printing."
                                        lsp-symbol-outline-symbol-kind-alist))
                     'face 'default)
                  (propertize
-                  (format "%ss\n" 
+                  (format "%ss\n"
                           (alist-get (plist-get (car same-kind-list) :kind)
                                      lsp-symbol-outline-symbol-kind-alist))
                   'face 'default))))

@@ -40,8 +40,16 @@
 
 ;; Defuns
 
+(defun lsp-symbol-outline--restart-tern ()
+       "Restart the tern server."
+       (tern-start-server (lambda (port err)
+                            nil)))
+
 (defun lsp-symbol-outline--tern-request-sync (point-pos)
        ;; FIXME Peformance, maybe make parallel through deferred
+       ;; ??? multithreading not possible?
+       ;; FIXME search fails "(" intermittently
+       ;; DONE Fails after tern idle for some time
        "Send a request to the ternjs server using `url-retrieve-synchronously'
 returning the function args and their types for func at POINT-POS."
        (let* ((url-mime-charset-string nil)
@@ -55,16 +63,20 @@ returning the function args and their types for func at POINT-POS."
                 (buffer-file-name)))
               (url-show-status nil)
               (url (url-parse-make-urlobj "http" nil nil
-                                          tern-server tern-known-port
+                                          tern-server
+                                          (if tern-known-port
+                                              tern-known-port
+                                            (lsp-symbol-outline--restart-tern)
+                                            tern-known-port)
                                           "/" nil nil nil))
               (url-current-object url))
          (with-current-buffer (url-retrieve-synchronously url)
-           (beginning-of-buffer)
-           (buffer-substring-no-properties
-            (progn (search-forward "(")
-                   (forward-char -1)
-                   (point))
-            (re-search-forward "[^\\])" nil t)))))
+                              (beginning-of-buffer)
+                              (buffer-substring-no-properties
+                               (progn (search-forward "(")
+                                      (forward-char -1)
+                                      (point))
+                               (re-search-forward "[^\\])" nil t)))))
 
 (defun lsp-symbol-outline--get-symbol-args-js (plist-item hasht-range)
        "Get the arguments for symbol by moving to symbol definition in buffer and

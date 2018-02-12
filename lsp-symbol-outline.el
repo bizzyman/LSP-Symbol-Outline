@@ -304,6 +304,7 @@ Return list of plists in order they appear in document."
                list))
 
 (defun lsp-symbol-outline--tree-sort (list)
+       ;; TODO use point position as comparison, not line
        "Sort list of symbol plists into a hierarchical tree. This is done in two
 stages. First compare :symbol-end-line of current symbol - the `global-counter'
 local var - and find the next symbol with a higher :symbol-end-line - the
@@ -355,6 +356,21 @@ hierarchy."
          (while (< x
                    (* (plist-get item :depth) 2))
            (progn (insert " ") (setq x (1+ x))))))
+
+(defun lsp-symbol-outline--insert-sym-kind-name (same-kind-list)
+  "Insert string based on plist's :kind property. Uses
+`lsp-symbol-outline-symbol-kind-alist' for name associations."
+  (insert (if (equal (plist-get (car same-kind-list) :kind) 5)
+              (propertize
+               (format "%ses\n"
+                       (alist-get (plist-get (car same-kind-list) :kind)
+                                  lsp-symbol-outline-symbol-kind-alist))
+               'face 'default)
+            (propertize
+             (format "%ss\n"
+                     (alist-get (plist-get (car same-kind-list) :kind)
+                                lsp-symbol-outline-symbol-kind-alist))
+             'face 'default))))
 
 (defun lsp-symbol-outline--print-symbol-icon-gui (item)
        "Inserts the gui version of glyph icon for symbol. Glyphs use
@@ -563,6 +579,7 @@ data."
          (funcall lsp-symbol-outline-print-sorted-func list-sorted)
          (beginning-of-buffer)
          (forward-whitespace 2)
+         ;; TODO save arg visibility level between calling sorted/sequential?
          (funcall lsp-symbol-outline-args-props-func)
          (setq-local lsp-symbol-outline-is-sorted t)
          (read-only-mode 1)
@@ -581,6 +598,7 @@ order of symbol appearance in source document."
          (funcall lsp-symbol-outline-print-func
                   lsp-outline-list
                   lsp-symbol-outline-src-buffer)
+         ;; TODO save arg visibility level between calling sorted/sequential?
          (funcall lsp-symbol-outline-args-props-func)
          (setq-local lsp-symbol-outline-is-sorted nil)
          (lsp-symbol-outline-go-top)
@@ -714,20 +732,29 @@ and use old one instead."
        (if (not lsp-mode)
            (lsp-mode))
 
-       (let ((current-line (string-to-number (format-mode-line "%l")))
+       (let ((inhibit-message t)
+             (current-line (string-to-number (format-mode-line "%l")))
              (lsp-outline-list
               ;; Caching
-              (if (and (boundp 'buffer-hash-value)
-                       (equal buffer-hash-value
-                              (md5 (buffer-substring-no-properties (point-min)
-                                                                   (point-max)))))
-                  buffer-orig-lsp-outline-list
-                (funcall tree-sort-handler (lsp-symbol-outline--sort-list-by-index
-                                            (lsp-symbol-outline--create-symbols-list
-                                             sym-end-handler
-                                             depth-handler
-                                             args-handler
-                                             docs-handler)))))
+              ;; (if (and (boundp 'buffer-hash-value)
+              ;;          (equal buffer-hash-value
+              ;;                 (md5 (buffer-substring-no-properties (point-min)
+              ;;                                                      (point-max)))))
+              ;;     buffer-orig-lsp-outline-list
+              ;;   (funcall tree-sort-handler (lsp-symbol-outline--sort-list-by-index
+              ;;                               (lsp-symbol-outline--create-symbols-list
+              ;;                                sym-end-handler
+              ;;                                depth-handler
+              ;;                                args-handler
+              ;;                                docs-handler))))
+              (funcall tree-sort-handler (lsp-symbol-outline--sort-list-by-index
+                                          (lsp-symbol-outline--create-symbols-list
+                                           sym-end-handler
+                                           depth-handler
+                                           args-handler
+                                           docs-handler)))
+
+              )
              (mod major-mode)
              (buf (current-buffer))
              (window (ignore-errors (split-window
@@ -847,23 +874,34 @@ buffer."
 (defun lsp-symbol-outline-up-sibling ()
        "Move up to previous symbol sibling."
        (interactive)
-       (let ((indent (current-indentation)))
+       (let ((opoint (point))
+             (indent (current-indentation)))
             (lsp-symbol-outline-previous-line)
             (while (and (not (equal (current-indentation)
                                     indent))
                         (not (eobp)))
-                   (lsp-symbol-outline-previous-line))))
+              (if (< (current-indentation)
+                     indent)
+                  (progn
+                    (message "No more siblings in direction")
+                    (goto-char opoint))
+                (lsp-symbol-outline-previous-line)))))
 
 (defun lsp-symbol-outline-down-sibling ()
        "Move down to next symbol sibling."
        (interactive)
-       (let ((indent (current-indentation)))
-            (outline-next-line)         ;FIXME does not work in sorted view
-            (while (and (not (equal (current-indentation)
+       (let ((opoint (point))
+             (indent (current-indentation)))
+            (lsp-symbol-outline-next-line)  ;DONE does not work in sorted view
+            (while (and (not (= (current-indentation)
                                     indent))
                         (not (eobp)))
-                   (outline-next-line))
-            (forward-whitespace 2)))
+              (if (< (current-indentation)
+                     indent)
+                  (progn
+                    (message "No more siblings in direction")
+                    (goto-char opoint))
+                (lsp-symbol-outline-next-line)))))
 
 (defun lsp-symbol-outline-previous-line ()
        "Go to previous symbol. Moves point to the beginning of symbol name."
