@@ -67,18 +67,19 @@ returning the function args and their types for func at POINT-POS."
                                           tern-known-port
                                           "/" nil nil nil))
               (url-current-object url))
-         (with-current-buffer
              (pcase (url-retrieve-synchronously url)
                (`(pred (not (bufferp)))
                (lsp-symbol-outline--restart-tern)
                (lsp-symbol-outline--tern-request-sync point-pos))
-               (buff buff))
-                              (beginning-of-buffer)
-                              (buffer-substring-no-properties
-                               (progn (search-forward "(")
-                                      (forward-char -1)
-                                      (point))
-                               (re-search-forward "[^\\])" nil t)))))
+               (buff
+                (with-current-buffer
+                    buff
+                  (beginning-of-buffer)
+                  (buffer-substring-no-properties
+                   (progn (search-forward "(")
+                          (forward-char -1)
+                          (point))
+                   (re-search-forward "[^\\])" nil t)))))))
 
 (defun lsp-symbol-outline--get-symbol-args-js (plist-item hasht-range)
        "Get the arguments for symbol by moving to symbol definition in buffer and
