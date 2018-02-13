@@ -40,11 +40,6 @@
 
 ;; Defuns
 
-(defun lsp-symbol-outline--restart-tern ()
-       "Restart the tern server."
-       (tern-start-server (lambda (port err)
-                            nil)))
-
 (defun lsp-symbol-outline--tern-request-sync (point-pos)
        ;; FIXME Peformance, maybe make parallel through deferred
        ;; ??? multithreading not possible?
@@ -67,19 +62,18 @@ returning the function args and their types for func at POINT-POS."
                                           tern-known-port
                                           "/" nil nil nil))
               (url-current-object url))
-             (pcase (url-retrieve-synchronously url)
-               (`(pred (not (bufferp)))
-               (lsp-symbol-outline--restart-tern)
-               (lsp-symbol-outline--tern-request-sync point-pos))
-               (buff
-                (with-current-buffer
-                    buff
-                  (beginning-of-buffer)
-                  (buffer-substring-no-properties
-                   (progn (search-forward "(")
-                          (forward-char -1)
-                          (point))
-                   (re-search-forward "[^\\])" nil t)))))))
+         (let ((b (ignore-errors
+                    (url-retrieve-synchronously url))))
+           (if b
+            (with-current-buffer b
+              (beginning-of-buffer)
+              (buffer-substring-no-properties
+               (progn (search-forward "(")
+                      (forward-char -1)
+                      (point))
+               (re-search-forward "[^\\])" nil t)))
+            (tern-send-buffer-to-server)
+            (lsp-symbol-outline--tern-request-sync point-pos)))))
 
 (defun lsp-symbol-outline--get-symbol-args-js (plist-item hasht-range)
        "Get the arguments for symbol by moving to symbol definition in buffer and
