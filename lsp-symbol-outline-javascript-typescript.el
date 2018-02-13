@@ -49,7 +49,7 @@
        ;; FIXME Peformance, maybe make parallel through deferred
        ;; ??? multithreading not possible?
        ;; FIXME search fails "(" intermittently
-       ;; DONE Fails after tern idle for some time
+       ;; FIXME Fails after tern idle for some time
        "Send a request to the ternjs server using `url-retrieve-synchronously'
 returning the function args and their types for func at POINT-POS."
        (let* ((url-mime-charset-string nil)
@@ -64,13 +64,15 @@ returning the function args and their types for func at POINT-POS."
               (url-show-status nil)
               (url (url-parse-make-urlobj "http" nil nil
                                           tern-server
-                                          (if tern-known-port
-                                              tern-known-port
-                                            (lsp-symbol-outline--restart-tern)
-                                            tern-known-port)
+                                          tern-known-port
                                           "/" nil nil nil))
               (url-current-object url))
-         (with-current-buffer (url-retrieve-synchronously url)
+         (with-current-buffer
+             (pcase (url-retrieve-synchronously url)
+               (`(pred (not (bufferp)))
+               (lsp-symbol-outline--restart-tern)
+               (lsp-symbol-outline--tern-request-sync point-pos))
+               (buff buff))
                               (beginning-of-buffer)
                               (buffer-substring-no-properties
                                (progn (search-forward "(")
