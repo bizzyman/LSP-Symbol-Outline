@@ -53,6 +53,9 @@
 
 ;; Vars
 
+(defvar lsp-symbol-outline-cursor-sensor-overlay-priority 1000
+        "Initial priority for cursor-sensor-functions overlay.")
+
 (defcustom lsp-symbol-outline-window-position
            'right
            "LSP symbol outline window position."
@@ -147,6 +150,12 @@ kind names.")
          "Face for outline html props."
          :group 'lsp-symbol-outline-faces)
 
+(defface lsp-symbol-outline-inside-current-symbol
+         ;; '((t :foreground "#0C1314" :background "#9ea8aa"))
+         '((t :inverse-video t))
+         "Face for ."
+         :group 'lsp-symbol-outline-faces)
+
 
 ;; Major mode
 
@@ -187,9 +196,8 @@ Ensure that lsp-mode is on and enabled."
 (defun lsp-symbol-outline--get-symbol-end-line (hasht-range)
        "Get the symbol end line from hash table HASHT-RANGE.
  Return line number."
-       (1+ (gethash "line"
-                    (gethash "end"
-                             hasht-range))))
+       (lsp--position-to-point (gethash "end"
+                                        hasht-range)))
 
 (defun lsp-symbol-outline--get-symbol-column (hasht-range)
        "Get the symbol start column from hash table HASHT-RANGE.
@@ -252,18 +260,19 @@ List of plists is returned by the local var agg-items."
                  (progn
                    ;; 3 - func/class start range
                    (plist-put plist-item :symbol-start-line
-                              (lsp-symbol-outline--get-symbol-start-line
-                               hasht-range))
+                              (lsp--position-to-point
+                               (gethash "start" hasht-range)))
                    ;; 4 - func/class end range
                    (plist-put plist-item :symbol-end-line
                               (funcall sym-end-handler hasht-range)))
                ;; 3 - var start range
                (plist-put plist-item :symbol-start-line
-                          (lsp-symbol-outline--get-symbol-start-line
-                           hasht-range))
+                          (lsp--position-to-point
+                           (gethash "start" hasht-range)))
                ;; 4 - var end range
                (plist-put plist-item :symbol-end-line
-                          (lsp-symbol-outline--get-symbol-end-line hasht-range)))
+                          (lsp--position-to-point
+                           (gethash "end" hasht-range))))
 
              ;; 5 - DEPTH
              (setq plist-item (funcall depth-handler plist-item))
@@ -342,6 +351,36 @@ Return tree sorted list of plists."
                         (setq local-counter (1+ local-counter)))))
            (setq global-counter (1+ global-counter))))
        list)
+
+(defun lsp-symbol-outline--handle-cursor-sensor ()
+       "..."
+       (lambda (a b c)
+         (message "o lol")
+        (let ((po (point))
+              ;; (inhibit-message t) ;; NOTE
+              )
+          (with-current-buffer
+              lsp-outline-buffer
+            (goto-line
+             (lsp-symbol-outline--find-closest-cell lsp-outline-list
+                                                    po))
+            (progn
+              (remove-overlays (point-min) (point-max)
+                               'face 'lsp-symbol-outline-inside-current-symbol)
+              (let ((o (make-overlay (line-beginning-position) (line-end-position))))
+                (overlay-put o 'face 'lsp-symbol-outline-inside-current-symbol)
+                (overlay-put o 'priority 99)))))))
+
+(defun lsp-symbol-outline-add-cursor-sensor-props (start end)
+       "Add text cursor-sensor-functions properties between START and END."
+       (let ((o (make-overlay start end)))
+        (overlay-put o
+                     'cursor-sensor-functions
+                     `(,(lsp-symbol-outline--handle-cursor-sensor))
+        ;; (overlay-put o 'priority 103)
+        ;; (setq lsp-symbol-outline-cursor-sensor-overlay-priority
+        ;;       (1+ lsp-symbol-outline-cursor-sensor-overlay-priority))
+        )))
 
 (defun lsp-symbol-outline--create-buffer ()
        "Create and return a buffer for inserting the LSP symbol outline."
@@ -452,8 +491,7 @@ chars."
 original document buffer."
        `(lambda (x)
           (switch-to-buffer-other-window ,buf)
-          (goto-line ,(plist-get item :symbol-start-line))
-          (move-to-column ,(plist-get item :column))))
+          (goto-char ,(plist-get item :symbol-start-line))))
 
 (defun lsp-symbol-outline--print-button (item buf)
        "Print the button that handles the `lsp-symbol-outline-show-docstring-tip'
@@ -733,7 +771,7 @@ and use old one instead."
            (lsp-mode))
 
        (let ((inhibit-message t)
-             (current-line (string-to-number (format-mode-line "%l")))
+             (current-pos (point))
              (lsp-outline-list
               ;; Caching
               ;; (if (and (boundp 'buffer-hash-value)
@@ -763,7 +801,16 @@ and use old one instead."
                                      lsp-symbol-outline-window-position)))
              (outline-buffer (lsp-symbol-outline--create-buffer)))
 
+         ;; add cursor-sensor-functions for detecing which symbol cursor in
+         (setq lsp-symbol-outline-cursor-sensor-overlay-priority 1000)
+         (cursor-sensor-mode 1)
+         (dolist (i lsp-outline-list)
+                 (lsp-symbol-outline-add-cursor-sensor-props
+                  (plist-get i :symbol-start-line)
+                  (plist-get i :symbol-end-line)))
+
          (setq-local buffer-orig-lsp-outline-list lsp-outline-list)
+         (setq-local lsp-outline-buffer outline-buffer)
          (setq-local buffer-hash-value
                      (md5 (buffer-substring-no-properties (point-min)
                                                           (point-max))))
@@ -820,7 +867,7 @@ and use old one instead."
 
          ;; go to closest line that function was called from
          (goto-line
-          (lsp-symbol-outline--find-closest-cell lsp-outline-list current-line))
+          (lsp-symbol-outline--find-closest-cell lsp-outline-list current-pos))
          (if (not (looking-at-p " *[^ ] "))
              (forward-whitespace 1)
            (forward-whitespace 2))
@@ -951,6 +998,36 @@ outline buffer."
             (push-button)
             (select-window w)))
 
+(defun lsp-symbol-outline-mark-symbol ()
+       "Mark symbol name at point."
+       (interactive)
+       (when (not (use-region-p))
+         (let ((b (bounds-of-thing-at-point 'symbol)))
+           (goto-char (car b))
+           (set-mark (cdr b)))))
+
+;; (overlays-in (point-min) (point-max))
+
+
+(defun lsp-symbol-outline--delete-cursor-overlays ()
+       "Remove all overlays in buffer that have cursor-sensor-functions set to
+`lsp-symbol-outline--handle-cursor-sensor'."
+       (dolist (o (overlays-in (point-min) (point-max)))
+         (when ;; (memq 'lsp-symbol-outline--handle-cursor-sensor
+               ;;       (overlay-get o 'cursor-sensor-functions))
+             (overlay-get o 'cursor-sensor-functions)
+           (delete-overlay o))))
+
+(defun lsp-symbol-outline-kill-window ()
+       "Kill the lsp-symbol-outline window and remove cursor-sensor-functions."
+       (interactive)
+       (with-current-buffer
+           lsp-symbol-outline-src-buffer
+         (lsp-symbol-outline--delete-cursor-overlays))
+       (remove-overlays (point-min) (point-max)
+                        'face 'lsp-symbol-outline-inside-current-symbol)
+       (kill-buffer-and-window))
+
 
 ;; Keybindings
 
@@ -971,7 +1048,7 @@ outline buffer."
             #'lsp-symbol-outline-toggle-folding)
 (define-key lsp-symbol-outline-mode-map
             (kbd  "q")
-            #'kill-buffer-and-window)
+            #'lsp-symbol-outline-kill-window)
 (define-key lsp-symbol-outline-mode-map
             (kbd  "gg")
             #'lsp-symbol-outline-go-top)
@@ -1005,6 +1082,9 @@ outline buffer."
 (define-key lsp-symbol-outline-mode-map
             (kbd  "d")
             #'lsp-symbol-outline-show-docstring-tip)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "m")
+            #'lsp-symbol-outline-mark-symbol)
 
 
 (provide 'lsp-symbol-outline)

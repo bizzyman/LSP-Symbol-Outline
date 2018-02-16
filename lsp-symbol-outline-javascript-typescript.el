@@ -40,6 +40,31 @@
 
 ;; Defuns
 
+(defun lsp-symbol-outline-tern-start-server (c)
+  (let* ((default-directory (tern-project-dir))
+         (cmd (append tern-command '("--strip-crs" "--persistent")))
+         (proc (apply #'start-process "Tern" nil cmd))
+         (all-output ""))
+    (set-process-query-on-exit-flag proc nil)
+    (set-process-sentinel proc (lambda (_proc _event)
+                                 (delete-process proc)
+                                 (setf tern-known-port (cons :failed (concat "Could not start Tern server\n" all-output)))
+                                 (run-at-time "30 sec" nil
+                                              (lambda (buf)
+                                                (with-current-buffer buf
+                                                  (when (consp (tern-known-port)) (setf tern-known-port nil))))
+                                              (current-buffer))
+                                 (funcall c nil (tern-known-port))))
+    (set-process-filter proc (lambda (proc output)
+                               (if (not (string-match "Listening on port \\([0-9][0-9]*\\)" output))
+                                   (setf all-output (concat all-output output))
+                                 (setf tern-known-port (string-to-number (match-string 1 output)))
+                                 (set-process-sentinel proc (lambda (proc _event)
+                                                              (delete-process proc)
+                                                              (setf tern-known-port nil)))
+                                 (set-process-filter proc nil)
+                                 (funcall c (tern-known-port) nil))))))
+
 (defun lsp-symbol-outline--tern-request-sync (point-pos)
        ;; FIXME Peformance, maybe make parallel through deferred
        ;; ??? multithreading not possible?
@@ -59,25 +84,35 @@ returning the function args and their types for func at POINT-POS."
               (url-show-status nil)
               (url (url-parse-make-urlobj "http" nil nil
                                           tern-server
-                                          lsp-tern-known-port
+                                          tern-known-port
                                           "/" nil nil nil))
               (url-current-object url))
-         (let ((b (ignore-errors
-                    (url-retrieve-synchronously url))))
-           (if b
-               (condition-case err
-                (with-current-buffer b
-                  (beginning-of-buffer)
-                  (buffer-substring-no-properties
-                   (progn (search-forward "(")
-                          (forward-char -1)
-                          (point))
-                   (re-search-forward "[^\\])" nil t)))
-                ('error
-                 (progn
-                  (tern-start-server (lambda (on e) nil))
-                  (sit-for 1)
-                  (lsp-symbol-outline--tern-request-sync point-pos))))))))
+
+         ;; (with-current-buffer (url-retrieve-synchronously url)
+         ;;   (beginning-of-buffer)
+         ;;   (buffer-substring-no-properties
+         ;;    (progn (search-forward "(")
+         ;;           (forward-char -1)
+         ;;           (point))
+         ;;    (re-search-forward "[^\\])" nil t)))
+
+         (condition-case err
+             (with-current-buffer (url-retrieve-synchronously url)
+               (beginning-of-buffer)
+               (buffer-substring-no-properties
+                (progn (search-forward "(")
+                       (forward-char -1)
+                       (point))
+                (re-search-forward "[^\\])" nil t)))
+           ('error
+            (progn
+              (ignore-errors (kill-process (get-process "Tern")))
+              ;; (tern-start-server (lambda (on e) nil))
+              (tern-send-buffer-to-server)
+              (sit-for 3)
+              (lsp-symbol-outline--tern-request-sync point-pos))))
+
+         ))
 
 (defun lsp-symbol-outline--tern-update-args ()
   (let ((opening-paren (cadr (syntax-ppss))))
