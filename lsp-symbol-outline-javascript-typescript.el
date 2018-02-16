@@ -59,42 +59,56 @@ returning the function args and their types for func at POINT-POS."
               (url-show-status nil)
               (url (url-parse-make-urlobj "http" nil nil
                                           tern-server
-                                          tern-known-port
+                                          lsp-tern-known-port
                                           "/" nil nil nil))
               (url-current-object url))
          (let ((b (ignore-errors
                     (url-retrieve-synchronously url))))
            (if b
-            (with-current-buffer b
-              (beginning-of-buffer)
-              (buffer-substring-no-properties
-               (progn (search-forward "(")
-                      (forward-char -1)
-                      (point))
-               (re-search-forward "[^\\])" nil t)))
-            (tern-send-buffer-to-server)
-            (lsp-symbol-outline--tern-request-sync point-pos)))))
+               (condition-case err
+                (with-current-buffer b
+                  (beginning-of-buffer)
+                  (buffer-substring-no-properties
+                   (progn (search-forward "(")
+                          (forward-char -1)
+                          (point))
+                   (re-search-forward "[^\\])" nil t)))
+                ('error
+                 (progn
+                  (tern-start-server (lambda (on e) nil))
+                  (sit-for 1)
+                  (lsp-symbol-outline--tern-request-sync point-pos))))))))
+
+(defun lsp-symbol-outline--tern-update-args ()
+  (let ((opening-paren (cadr (syntax-ppss))))
+    (tern-run-query (lambda (data)
+                      (let ((type (tern-parse-function-type data)))
+                        (when type
+                          (setf tern-last-argument-hints (cons opening-paren type))
+                          )))
+                    `((type . "type")
+                      (preferFunction . t))
+                    opening-paren
+                    :silent)))
 
 (defun lsp-symbol-outline--get-symbol-args-js (plist-item hasht-range)
        "Get the arguments for symbol by moving to symbol definition in buffer and
 making a tern request there."
-       (goto-line (plist-get plist-item :symbol-start-line))
-       (move-to-column (plist-get plist-item :column))
+       (goto-char (plist-get plist-item :symbol-start-line))
        (if
         (search-forward "("
-                        (lsp--position-to-point (gethash "end" hasht-range))
+                        (plist-get plist-item :symbol-end-line)
                         t)
            (lsp-symbol-outline--tern-request-sync
-            (progn
-              (backward-char)
-              (1- (point))))
+            (- (point) 2))
          nil))
 
 (defun lsp-symbol-outline--get-symbol-docs-js (plist-item)
        "Get the docstring for symbol by parsing the JSDoc block above symbol
 seeing as this function is invoked inside a `save-excursion', so no need to move
 to symbol definition twice."
-       (goto-line (1- (plist-get plist-item :symbol-start-line)))
+       (goto-char (plist-get plist-item :symbol-start-line))
+       (vertical-motion -1)
        (if (and (search-forward "*/" (line-end-position) t)
                 (forward-comment -1)
                 (looking-at "\\/\\*\\*"))
