@@ -151,8 +151,8 @@ kind names.")
          :group 'lsp-symbol-outline-faces)
 
 (defface lsp-symbol-outline-inside-current-symbol
-         ;; '((t :foreground "#0C1314" :background "#9ea8aa"))
-         '((t :inverse-video t))
+         '((t :foreground "#0C1314" :background "#9ea8aa"))
+         ;; '((t :inverse-video t))
          "Face for ."
          :group 'lsp-symbol-outline-faces)
 
@@ -352,35 +352,33 @@ Return tree sorted list of plists."
            (setq global-counter (1+ global-counter))))
        list)
 
-(defun lsp-symbol-outline--handle-cursor-sensor ()
+(defun lsp-symbol-outline--handle-cursor-sensor (line)
        "..."
-       (lambda (a b c)
-         (message "o lol")
-        (let ((po (point))
-              ;; (inhibit-message t) ;; NOTE
-              )
-          (with-current-buffer
-              lsp-outline-buffer
-            (goto-line
-             (lsp-symbol-outline--find-closest-cell lsp-outline-list
-                                                    po))
-            (progn
-              (remove-overlays (point-min) (point-max)
-                               'face 'lsp-symbol-outline-inside-current-symbol)
-              (let ((o (make-overlay (line-beginning-position) (line-end-position))))
-                (overlay-put o 'face 'lsp-symbol-outline-inside-current-symbol)
-                (overlay-put o 'priority 99)))))))
+       (lambda (w p dir)
+        (let ((inhibit-message t))
+          (ignore-errors (with-current-buffer
+               lsp-outline-buffer
 
-(defun lsp-symbol-outline-add-cursor-sensor-props (start end)
+             (save-excursion
+               (goto-line line)
+               (cond
+                ((eq dir 'left)
+                 (remove-overlays (point-min) (point-max)
+                                  'face 'lsp-symbol-outline-inside-current-symbol))
+                ((eq dir 'entered)
+                 (progn
+                   (remove-overlays (point-min) (point-max)
+                                    'face 'lsp-symbol-outline-inside-current-symbol)
+                   (let ((o (make-overlay (line-beginning-position) (line-end-position))))
+                     (overlay-put o 'face 'lsp-symbol-outline-inside-current-symbol)
+                     (overlay-put o 'priority 99)))))))))))
+
+(defun lsp-symbol-outline-add-cursor-sensor-props (start end line)
        "Add text cursor-sensor-functions properties between START and END."
        (let ((o (make-overlay start end)))
         (overlay-put o
                      'cursor-sensor-functions
-                     `(,(lsp-symbol-outline--handle-cursor-sensor))
-        ;; (overlay-put o 'priority 103)
-        ;; (setq lsp-symbol-outline-cursor-sensor-overlay-priority
-        ;;       (1+ lsp-symbol-outline-cursor-sensor-overlay-priority))
-        )))
+                     `(,(lsp-symbol-outline--handle-cursor-sensor line)))))
 
 (defun lsp-symbol-outline--create-buffer ()
        "Create and return a buffer for inserting the LSP symbol outline."
@@ -801,13 +799,6 @@ and use old one instead."
                                      lsp-symbol-outline-window-position)))
              (outline-buffer (lsp-symbol-outline--create-buffer)))
 
-         ;; add cursor-sensor-functions for detecing which symbol cursor in
-         (setq lsp-symbol-outline-cursor-sensor-overlay-priority 1000)
-         (cursor-sensor-mode 1)
-         (dolist (i lsp-outline-list)
-                 (lsp-symbol-outline-add-cursor-sensor-props
-                  (plist-get i :symbol-start-line)
-                  (plist-get i :symbol-end-line)))
 
          (setq-local buffer-orig-lsp-outline-list lsp-outline-list)
          (setq-local lsp-outline-buffer outline-buffer)
@@ -851,6 +842,15 @@ and use old one instead."
          ;; set the arg text props function
          (setq-local lsp-symbol-outline-args-props-func
                      arg-props-handler)
+
+         (with-current-buffer lsp-symbol-outline-src-buffer
+             ;; add cursor-sensor-functions for detecing which symbol cursor in
+             (cursor-sensor-mode 1)
+           (dolist (i lsp-outline-list)
+             (lsp-symbol-outline-add-cursor-sensor-props
+              (plist-get i :symbol-start-line)
+              (plist-get i :symbol-end-line)
+              (plist-get i :line))))
 
          ;; Outline mode for folding symbols
          (outline-minor-mode 1)

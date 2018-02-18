@@ -41,29 +41,46 @@
 ;; Defuns
 
 (defun lsp-symbol-outline-tern-start-server (c)
-  (let* ((default-directory (tern-project-dir))
-         (cmd (append tern-command '("--strip-crs" "--persistent")))
-         (proc (apply #'start-process "Tern" nil cmd))
-         (all-output ""))
-    (set-process-query-on-exit-flag proc nil)
-    (set-process-sentinel proc (lambda (_proc _event)
+       "Start LSP symbol outline managed tern process for querying argument info."
+       (let* ((default-directory (tern-project-dir))
+              (cmd (append tern-command
+                           `(,(format "%s" (tern-project-dir))
+                             "--strip-crs" "--persistent")))
+              (proc (apply #'start-process "LSP-S-O-tern" nil cmd))
+              (all-output ""))
+         (set-process-query-on-exit-flag proc nil)
+         (set-process-sentinel proc
+                               (lambda (_proc _event)
                                  (delete-process proc)
-                                 (setf tern-known-port (cons :failed (concat "Could not start Tern server\n" all-output)))
+                                 (setf lsp-s-o-tern-known-port
+                                       (cons :failed
+                                             (concat "Could not start Tern server\n"
+                                                     all-output)))
                                  (run-at-time "30 sec" nil
                                               (lambda (buf)
                                                 (with-current-buffer buf
-                                                  (when (consp (tern-known-port)) (setf tern-known-port nil))))
-                                              (current-buffer))
-                                 (funcall c nil (tern-known-port))))
-    (set-process-filter proc (lambda (proc output)
-                               (if (not (string-match "Listening on port \\([0-9][0-9]*\\)" output))
+                                                  (when (consp
+                                                         (lsp-s-o-tern-known-port))
+                                                    (setf lsp-s-o-tern-known-port
+                                                          nil))))
+                                              (current-buffer))))
+         (set-process-filter proc
+                             (lambda (proc output)
+                               (if (not (string-match
+                                         "Listening on port \\([0-9][0-9]*\\)"
+                                         output))
                                    (setf all-output (concat all-output output))
-                                 (setf tern-known-port (string-to-number (match-string 1 output)))
-                                 (set-process-sentinel proc (lambda (proc _event)
-                                                              (delete-process proc)
-                                                              (setf tern-known-port nil)))
-                                 (set-process-filter proc nil)
-                                 (funcall c (tern-known-port) nil))))))
+                                 (setf lsp-s-o-tern-known-port
+                                       (string-to-number (match-string 1 output)))
+                                 (set-process-sentinel proc
+                                                       (lambda (proc _event)
+                                                         (delete-process proc)
+                                                         (setf
+                                                          lsp-s-o-tern-known-port
+                                                          nil)))
+                                 (set-process-filter proc nil))))))
+
+
 
 (defun lsp-symbol-outline--tern-request-sync (point-pos)
        ;; FIXME Peformance, maybe make parallel through deferred
@@ -80,22 +97,13 @@ returning the function args and their types for func at POINT-POS."
                 "{\"query\":{\"end\":%s,\"file\":\"%s\",\"type\":\"type\",
                   \"preferFunction\":true}}"
                 point-pos
-                (buffer-file-name)))
+                (s-chop-prefix (tern-project-dir) (buffer-file-name))))
               (url-show-status nil)
               (url (url-parse-make-urlobj "http" nil nil
                                           tern-server
-                                          tern-known-port
+                                          lsp-s-o-tern-known-port
                                           "/" nil nil nil))
               (url-current-object url))
-
-         ;; (with-current-buffer (url-retrieve-synchronously url)
-         ;;   (beginning-of-buffer)
-         ;;   (buffer-substring-no-properties
-         ;;    (progn (search-forward "(")
-         ;;           (forward-char -1)
-         ;;           (point))
-         ;;    (re-search-forward "[^\\])" nil t)))
-
          (condition-case err
              (with-current-buffer (url-retrieve-synchronously url)
                (beginning-of-buffer)
@@ -106,13 +114,11 @@ returning the function args and their types for func at POINT-POS."
                 (re-search-forward "[^\\])" nil t)))
            ('error
             (progn
-              (ignore-errors (kill-process (get-process "Tern")))
-              ;; (tern-start-server (lambda (on e) nil))
-              (tern-send-buffer-to-server)
-              (sit-for 3)
-              (lsp-symbol-outline--tern-request-sync point-pos))))
-
-         ))
+              (message "restarting tern server ... please wait ...")
+              (ignore-errors (kill-process (get-process "LSP-S-O-tern")))
+              (lsp-symbol-outline-tern-start-server (lambda (on e) nil))
+              (sit-for 1.5)
+              (lsp-symbol-outline--tern-request-sync point-pos))))))
 
 (defun lsp-symbol-outline--tern-update-args ()
   (let ((opening-paren (cadr (syntax-ppss))))
@@ -166,6 +172,7 @@ to symbol definition twice."
       "Insert indentation, icon, button and any args into symbol outline buffer.
 Iterates over symbol list. Javascript specific argument printing."
   (dolist (item list)
+    (plist-put item :line (string-to-number (format-mode-line "%l")))
     (insert " ")
     ;; indentation
     (lsp-symbol-outline--print-indentation item)
@@ -211,6 +218,7 @@ JS specific."
              (lsp-symbol-outline--insert-sym-kind-name same-kind-list)
 
              (dolist (item same-kind-list)
+               (plist-put item :line (string-to-number (format-mode-line "%l")))
                ;; spaces
                (insert (make-string 5 32))
                ;; button
@@ -331,6 +339,14 @@ JS specific."
        "Call `lsp-symbol-outline-create-buffer-window' with js specific
 functions. Creates LSP sym ouline buffer."
        (interactive)
+       (if (not (equal (tern-project-dir)
+                       (ignore-errors
+                         (nth 1 (process-command
+                                 (get-process "LSP-S-O-tern"))))))
+           (progn
+             (ignore-errors (kill-process (get-process "LSP-S-O-tern")))
+             (lsp-symbol-outline-tern-start-server (lambda (on e) nil))
+             (sit-for 3)))
        (lsp-symbol-outline-create-buffer-window
         #'lsp-symbol-outline--get-symbol-end-line
         #'lsp-symbol-outline--set-placeholder-depth
