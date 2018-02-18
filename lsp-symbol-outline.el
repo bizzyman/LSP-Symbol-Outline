@@ -1006,9 +1006,6 @@ outline buffer."
            (goto-char (car b))
            (set-mark (cdr b)))))
 
-;; (overlays-in (point-min) (point-max))
-
-
 (defun lsp-symbol-outline--delete-cursor-overlays ()
        "Remove all overlays in buffer that have cursor-sensor-functions set to
 `lsp-symbol-outline--handle-cursor-sensor'."
