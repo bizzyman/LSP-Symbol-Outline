@@ -313,7 +313,6 @@ Return list of plists in order they appear in document."
                list))
 
 (defun lsp-symbol-outline--tree-sort (list)
-       ;; TODO use point position as comparison, not line
        "Sort list of symbol plists into a hierarchical tree. This is done in two
 stages. First compare :symbol-end-line of current symbol - the `global-counter'
 local var - and find the next symbol with a higher :symbol-end-line - the
@@ -352,33 +351,46 @@ Return tree sorted list of plists."
            (setq global-counter (1+ global-counter))))
        list)
 
-(defun lsp-symbol-outline--handle-cursor-sensor (line)
-       "..."
-       (lambda (w p dir)
-        (let ((inhibit-message t))
-          (ignore-errors (with-current-buffer
-               lsp-outline-buffer
+(defun lsp-symbol-outline-unhighlight-symbol ()
+       "Remove idle timer highlighting in symbol outline buffer."
+       (with-current-buffer
+           lsp-outline-buffer
+         (save-excursion
+           (remove-overlays (point-min) (point-max)
+                            'face 'lsp-symbol-outline-inside-current-symbol))))
 
-             (save-excursion
-               (goto-line line)
-               (cond
-                ((eq dir 'left)
+(defun lsp-symbol-outline-highlight-symbol ()
+       "Go to symbol outline buffer and highlight the symbol inside which point
+currently resides."
+       (let* ((inhibit-message t)
+              (line
+               (ignore-errors (overlay-get (car (overlays-at (point) t))
+                                           'lsp-symbol-outline-timer-goto-line))))
+         (if (not line)
+             (ignore-errors (lsp-symbol-outline-unhighlight-symbol))
+           (ignore-errors
+             (with-current-buffer
+                 lsp-outline-buffer
+               (save-excursion
+                 (goto-char (point-min))
+                 (forward-line line)
                  (remove-overlays (point-min) (point-max)
-                                  'face 'lsp-symbol-outline-inside-current-symbol))
-                ((eq dir 'entered)
-                 (progn
-                   (remove-overlays (point-min) (point-max)
-                                    'face 'lsp-symbol-outline-inside-current-symbol)
-                   (let ((o (make-overlay (line-beginning-position) (line-end-position))))
-                     (overlay-put o 'face 'lsp-symbol-outline-inside-current-symbol)
-                     (overlay-put o 'priority 99)))))))))))
+                                  'face 'lsp-symbol-outline-inside-current-symbol)
+                 (let ((o (make-overlay (line-beginning-position)
+                                        (line-end-position))))
+                   (overlay-put o 'face 'lsp-symbol-outline-inside-current-symbol)
+                   (overlay-put o 'priority 99))
+                 ))))))
 
-(defun lsp-symbol-outline-add-cursor-sensor-props (start end line)
-       "Add text cursor-sensor-functions properties between START and END."
+(defun lsp-symbol-outline-add-idle-timer-highlight-props (start end line)
+       "Ceate an overlay corresponding to :symbol-start-point and
+:symbol-end-point that stores the line on which the symbol is printed on in the
+symbol outline buffer. Adds `lsp-symbol-outline-timer-goto-line'
+properties between START and END."
        (let ((o (make-overlay start end)))
-        (overlay-put o
-                     'cursor-sensor-functions
-                     `(,(lsp-symbol-outline--handle-cursor-sensor line)))))
+         (overlay-put o
+                      'lsp-symbol-outline-timer-goto-line
+                      line)))
 
 (defun lsp-symbol-outline--create-buffer ()
        "Create and return a buffer for inserting the LSP symbol outline."
@@ -847,10 +859,13 @@ and use old one instead."
              ;; add cursor-sensor-functions for detecing which symbol cursor in
              (cursor-sensor-mode 1)
            (dolist (i lsp-outline-list)
-             (lsp-symbol-outline-add-cursor-sensor-props
+             (lsp-symbol-outline-add-idle-timer-highlight-props
               (plist-get i :symbol-start-line)
               (plist-get i :symbol-end-line)
-              (plist-get i :line))))
+              (plist-get i :line)))
+           (setq-local lsp-s-o-idle-timer-highlight
+                       (run-with-idle-timer 0.3 t
+                                            #'lsp-symbol-outline-highlight-symbol)))
 
          ;; Outline mode for folding symbols
          (outline-minor-mode 1)
@@ -1006,21 +1021,21 @@ outline buffer."
            (goto-char (car b))
            (set-mark (cdr b)))))
 
-(defun lsp-symbol-outline--delete-cursor-overlays ()
-       "Remove all overlays in buffer that have cursor-sensor-functions set to
-`lsp-symbol-outline--handle-cursor-sensor'."
+(defun lsp-symbol-outline--delete-idle-timer-overlays ()
+       "Remove all overlays in buffer that have
+`lsp-symbol-outline-timer-goto-line' properties."
        (dolist (o (overlays-in (point-min) (point-max)))
-         (when ;; (memq 'lsp-symbol-outline--handle-cursor-sensor
-               ;;       (overlay-get o 'cursor-sensor-functions))
-             (overlay-get o 'cursor-sensor-functions)
-           (delete-overlay o))))
+         (when (overlay-get o 'lsp-symbol-outline-timer-goto-line)
+               (delete-overlay o))))
 
 (defun lsp-symbol-outline-kill-window ()
        "Kill the lsp-symbol-outline window and remove cursor-sensor-functions."
        (interactive)
        (with-current-buffer
            lsp-symbol-outline-src-buffer
-         (lsp-symbol-outline--delete-cursor-overlays))
+         (lsp-symbol-outline--delete-idle-timer-overlays)
+         (cancel-timer lsp-s-o-idle-timer-highlight)
+         (setq lsp-s-o-idle-timer-highlight nil))
        (remove-overlays (point-min) (point-max)
                         'face 'lsp-symbol-outline-inside-current-symbol)
        (kill-buffer-and-window))
