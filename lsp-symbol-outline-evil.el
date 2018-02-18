@@ -60,7 +60,7 @@
             #'lsp-symbol-outline-toggle-folding)
 (define-key evil-lsp-symbol-outline-state-map
             (kbd  "q")
-            #'kill-buffer-and-window)
+            #'lsp-symbol-outline-kill-window)
 (define-key evil-lsp-symbol-outline-state-map
             (kbd  "gg")
             #'lsp-symbol-outline-go-top)
@@ -94,6 +94,9 @@
 (define-key evil-lsp-symbol-outline-state-map
             (kbd  "d")
             #'lsp-symbol-outline-show-docstring-tip)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "m")
+            #'lsp-symbol-outline-mark-symbol)
 
 (provide 'lsp-symbol-outline-evil)
 
