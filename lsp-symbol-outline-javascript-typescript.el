@@ -109,7 +109,7 @@ returning the function args and their types for func at POINT-POS."
               (url-current-object url))
          (condition-case err
              (with-current-buffer (url-retrieve-synchronously url)
-               (beginning-of-buffer)
+               (goto-char (point-min))
                (buffer-substring-no-properties
                 (progn (search-forward "(")
                        (forward-char -1)
@@ -118,8 +118,9 @@ returning the function args and their types for func at POINT-POS."
            ('error
             (progn
               (message "restarting tern server ... please wait ...")
-              (ignore-errors (kill-process (get-process "LSP-S-O-tern")))
-              (lsp-symbol-outline-tern-start-server (lambda (on e) nil))
+              ;; (ignore-errors (kill-process (get-process "LSP-S-O-tern")))
+              ;; (sit-for 0.1)
+              ;; (lsp-symbol-outline-tern-start-server (lambda (on e) nil))
               (sit-for 1.5)
               (lsp-symbol-outline--tern-request-sync point-pos))))))
 
@@ -349,8 +350,9 @@ ouline buffer."
                                  (get-process "LSP-S-O-tern"))))))
            (progn
              (ignore-errors (kill-process (get-process "LSP-S-O-tern")))
+             (sit-for 0.1)
              (lsp-symbol-outline-tern-start-server (lambda (on e) nil))
-             (sit-for 3)
+             (sit-for 1)
              (add-hook 'kill-buffer-hook
                        #'lsp-symbol-outlline--kill-tern-fn
                        nil t)))

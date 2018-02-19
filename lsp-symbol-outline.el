@@ -638,7 +638,7 @@ data."
              (inhibit-message t))
          (erase-buffer)
          (funcall lsp-symbol-outline-print-sorted-func list-sorted)
-         (beginning-of-buffer)
+         (goto-char (point-min))
          (forward-whitespace 2)
          ;; TODO save arg visibility level between calling sorted/sequential?
          (funcall lsp-symbol-outline-args-props-func)
@@ -908,8 +908,9 @@ and use old one instead."
             (vconcat (mapcar (lambda (c) (+ face-offset c)) " +"))))
 
          ;; go to closest line that function was called from
-         (goto-line
-          (lsp-symbol-outline--find-closest-cell lsp-outline-list current-pos))
+         (goto-char (point-min))
+         (forward-line
+          (1- (lsp-symbol-outline--find-closest-cell lsp-outline-list current-pos)))
          (if (not (looking-at-p " *[^ ] "))
              (forward-whitespace 1)
            (forward-whitespace 2))
@@ -1022,7 +1023,7 @@ symbol's."
 (defun lsp-symbol-outline-go-top ()
        "Go to top of symbol outline tree."
        (interactive)
-       (beginning-of-buffer)
+       (goto-char (point-min))
        (forward-whitespace 2))
 
 (defun lsp-symbol-outline-go-to-bottom ()
