@@ -104,7 +104,7 @@ Returns arg string based on whether it is empty or not."
        "Insert indentation, icon, button and any args into symbol outline buffer.
 Iterates over symbol list. Python specific argument printing."
        (dolist (item list)
-         (insert " ")
+         (insert "  ")
          ;; indentation
          (lsp-symbol-outline--print-indentation item)
          ;; icon
@@ -146,7 +146,7 @@ Python specific."
                   (-filter (lambda (i) (equal (plist-get i :kind) sym-kind))
                            list-sorted)))
              ;; icon
-             (insert " ")
+             (insert "  ")
              (if window-system
                  (lsp-symbol-outline--print-symbol-icon-gui (car same-kind-list))
                (lsp-symbol-outline--print-symbol-icon-term (car same-kind-list)))

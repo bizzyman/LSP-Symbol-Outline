@@ -151,7 +151,8 @@ kind names.")
          :group 'lsp-symbol-outline-faces)
 
 (defface lsp-symbol-outline-inside-current-symbol
-         '((t :foreground "#0C1314" :background "#9ea8aa"))
+         ;; '((t :foreground "#0C1314" :background "#9ea8aa"))
+         '((t :foreground "deep sky blue"))
          ;; '((t :inverse-video t))
          "Face for ."
          :group 'lsp-symbol-outline-faces)
@@ -364,8 +365,12 @@ Return tree sorted list of plists."
 currently resides."
        (let* ((inhibit-message t)
               (line
-               (ignore-errors (overlay-get (car (overlays-at (point) t))
-                                           'lsp-symbol-outline-timer-goto-line))))
+               (ignore-errors (overlay-get
+                               (-first (lambda (o)
+                                         (overlay-get
+                                          o 'lsp-symbol-outline-timer-goto-line))
+                                       (overlays-at (point) t))
+                               'lsp-symbol-outline-timer-goto-line))))
          (if (not line)
              (ignore-errors (lsp-symbol-outline-unhighlight-symbol))
            (ignore-errors
@@ -373,14 +378,14 @@ currently resides."
                  lsp-outline-buffer
                (save-excursion
                  (goto-char (point-min))
-                 (forward-line line)
+                 (forward-line (1- line))
                  (remove-overlays (point-min) (point-max)
                                   'face 'lsp-symbol-outline-inside-current-symbol)
                  (let ((o (make-overlay (line-beginning-position)
-                                        (line-end-position))))
+                                        (1+(line-beginning-position)) )))
+                   (overlay-put o 'display ">")
                    (overlay-put o 'face 'lsp-symbol-outline-inside-current-symbol)
-                   (overlay-put o 'priority 99))
-                 ))))))
+                   (overlay-put o 'priority 99))))))))
 
 (defun lsp-symbol-outline-add-idle-timer-highlight-props (start end line)
        "Ceate an overlay corresponding to :symbol-start-point and
@@ -391,6 +396,13 @@ properties between START and END."
          (overlay-put o
                       'lsp-symbol-outline-timer-goto-line
                       line)))
+
+(defun lsp-symbol-outline--delete-idle-timer-overlays ()
+       "Remove all overlays in buffer that have
+`lsp-symbol-outline-timer-goto-line' properties."
+       (dolist (o (overlays-in (point-min) (point-max)))
+         (when (overlay-get o 'lsp-symbol-outline-timer-goto-line)
+           (delete-overlay o))))
 
 (defun lsp-symbol-outline--create-buffer ()
        "Create and return a buffer for inserting the LSP symbol outline."
@@ -407,19 +419,19 @@ hierarchy."
            (progn (insert " ") (setq x (1+ x))))))
 
 (defun lsp-symbol-outline--insert-sym-kind-name (same-kind-list)
-  "Insert string based on plist's :kind property. Uses
+       "Insert string based on plist's :kind property. Uses
 `lsp-symbol-outline-symbol-kind-alist' for name associations."
-  (insert (if (equal (plist-get (car same-kind-list) :kind) 5)
-              (propertize
-               (format "%ses\n"
-                       (alist-get (plist-get (car same-kind-list) :kind)
-                                  lsp-symbol-outline-symbol-kind-alist))
-               'face 'default)
-            (propertize
-             (format "%ss\n"
-                     (alist-get (plist-get (car same-kind-list) :kind)
-                                lsp-symbol-outline-symbol-kind-alist))
-             'face 'default))))
+       (insert (if (equal (plist-get (car same-kind-list) :kind) 5)
+                   (propertize
+                    (format "%ses\n"
+                            (alist-get (plist-get (car same-kind-list) :kind)
+                                       lsp-symbol-outline-symbol-kind-alist))
+                    'face 'default)
+                 (propertize
+                  (format "%ss\n"
+                          (alist-get (plist-get (car same-kind-list) :kind)
+                                     lsp-symbol-outline-symbol-kind-alist))
+                  'face 'default))))
 
 (defun lsp-symbol-outline--print-symbol-icon-gui (item)
        "Inserts the gui version of glyph icon for symbol. Glyphs use
@@ -621,8 +633,9 @@ data."
                                    (buffer-substring-no-properties
                                     (line-beginning-position)
                                     (line-end-position)))))
-             (list-sorted (lsp-symbol-outline--sort-by-category lsp-outline-list)))
-         (read-only-mode 0)
+             (list-sorted (lsp-symbol-outline--sort-by-category lsp-outline-list))
+             (inhibit-read-only t)
+             (inhibit-message t))
          (erase-buffer)
          (funcall lsp-symbol-outline-print-sorted-func list-sorted)
          (beginning-of-buffer)
@@ -630,9 +643,16 @@ data."
          ;; TODO save arg visibility level between calling sorted/sequential?
          (funcall lsp-symbol-outline-args-props-func)
          (setq-local lsp-symbol-outline-is-sorted t)
-         (read-only-mode 1)
          (search-forward-regexp (format "%s\\((\\|$\\)" line) nil t)
-         (beginning-of-line-text)))
+         (beginning-of-line-text)
+         (with-current-buffer lsp-symbol-outline-src-buffer
+           (lsp-symbol-outline--delete-idle-timer-overlays)
+           (dolist (i buffer-orig-lsp-outline-list)
+             (lsp-symbol-outline-add-idle-timer-highlight-props
+              (plist-get i :symbol-start-line)
+              (plist-get i :symbol-end-line)
+              (plist-get i :line)))
+           (lsp-symbol-outline-highlight-symbol))))
 
 (defun lsp-symbol-outline-print-sequential ()
        "Reverse the grouping of symbols by kind and print a symbol outline in
@@ -640,8 +660,9 @@ order of symbol appearance in source document."
        (let ((l (nth 1
                      (s-match " +. \\(\\w+\\)"
                               (buffer-substring-no-properties
-                               (line-beginning-position) (line-end-position))))))
-         (read-only-mode 0)
+                               (line-beginning-position) (line-end-position)))))
+             (inhibit-read-only t)
+             (inhibit-message t))
          (erase-buffer)
          (funcall lsp-symbol-outline-print-func
                   lsp-outline-list
@@ -650,10 +671,17 @@ order of symbol appearance in source document."
          (funcall lsp-symbol-outline-args-props-func)
          (setq-local lsp-symbol-outline-is-sorted nil)
          (lsp-symbol-outline-go-top)
-         (read-only-mode 1)
          (search-forward-regexp (format "%s\\((\\|$\\)" l) nil t)
          (beginning-of-line-text)
-         (forward-to-word 1)))
+         (forward-to-word 1)
+         (with-current-buffer lsp-symbol-outline-src-buffer
+           (lsp-symbol-outline--delete-idle-timer-overlays)
+           (dolist (i buffer-orig-lsp-outline-list)
+             (lsp-symbol-outline-add-idle-timer-highlight-props
+              (plist-get i :symbol-start-line)
+              (plist-get i :symbol-end-line)
+              (plist-get i :line)))
+           (lsp-symbol-outline-highlight-symbol))))
 
 ;;; The below function is stolen from misc-cmds.el as emacswiki packages
 ;;; are no longer on melpa TODO implement own
@@ -856,8 +884,7 @@ and use old one instead."
                      arg-props-handler)
 
          (with-current-buffer lsp-symbol-outline-src-buffer
-             ;; add cursor-sensor-functions for detecing which symbol cursor in
-             (cursor-sensor-mode 1)
+             ;; add run-with-idle-timer for detecing which symbol cursor in
            (dolist (i lsp-outline-list)
              (lsp-symbol-outline-add-idle-timer-highlight-props
               (plist-get i :symbol-start-line)
@@ -1020,13 +1047,6 @@ outline buffer."
          (let ((b (bounds-of-thing-at-point 'symbol)))
            (goto-char (car b))
            (set-mark (cdr b)))))
-
-(defun lsp-symbol-outline--delete-idle-timer-overlays ()
-       "Remove all overlays in buffer that have
-`lsp-symbol-outline-timer-goto-line' properties."
-       (dolist (o (overlays-in (point-min) (point-max)))
-         (when (overlay-get o 'lsp-symbol-outline-timer-goto-line)
-               (delete-overlay o))))
 
 (defun lsp-symbol-outline-kill-window ()
        "Kill the lsp-symbol-outline window and remove cursor-sensor-functions."

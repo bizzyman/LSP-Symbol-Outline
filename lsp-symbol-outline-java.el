@@ -51,7 +51,7 @@ HASHT-RANGE and jumping to matching } brace. Return line number."
          (search-forward "{" nil t)
          (backward-char)
          (lsp-symbol-outline--jump-paren)
-         (line-number-at-pos)))
+         (point)))
 
 (defun lsp-symbol-outline--get-symbol-docs-java (plist-item)
        "Move to :symbol-start-line and parse javadoc block above symbol.
@@ -75,7 +75,7 @@ Return first sentence of block as string."
        "Insert indentation, icon, button and any args into symbol outline buffer.
 Iterates over symbol list. Java specific argument printing."
   (dolist (item list)
-    (insert " ")
+    (insert "  ")
     ;; indentation
     (lsp-symbol-outline--print-indentation item)
     ;; icon
@@ -132,7 +132,7 @@ Java specific."
                   (-filter (lambda (i) (equal (plist-get i :kind) sym-kind))
                            list-sorted)))
              ;; icon
-             (insert " ")
+             (insert "  ")
              (if window-system
                  (lsp-symbol-outline--print-symbol-icon-gui (car same-kind-list))
                (lsp-symbol-outline--print-symbol-icon-term (car same-kind-list)))

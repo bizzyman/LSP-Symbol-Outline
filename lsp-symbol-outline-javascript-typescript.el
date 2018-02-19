@@ -80,6 +80,9 @@
                                                           nil)))
                                  (set-process-filter proc nil))))))
 
+(defun lsp-symbol-outlline--kill-tern-fn ()
+       "Kill the LSP symbol outline managed tern process."
+       (kill-process (get-process "LSP-S-O-tern")))
 
 
 (defun lsp-symbol-outline--tern-request-sync (point-pos)
@@ -173,7 +176,7 @@ to symbol definition twice."
 Iterates over symbol list. Javascript specific argument printing."
   (dolist (item list)
     (plist-put item :line (string-to-number (format-mode-line "%l")))
-    (insert " ")
+    (insert "  ")
     ;; indentation
     (lsp-symbol-outline--print-indentation item)
     ;; icon
@@ -210,7 +213,7 @@ JS specific."
                   (-filter (lambda (i) (equal (plist-get i :kind) sym-kind))
                            list-sorted)))
              ;; icon
-             (insert " ")
+             (insert "  ")
              (if window-system
                  (lsp-symbol-outline--print-symbol-icon-gui (car same-kind-list))
                (lsp-symbol-outline--print-symbol-icon-term (car same-kind-list)))
@@ -337,7 +340,8 @@ JS specific."
 ;;;###autoload
 (defun lsp-symbol-outline-make-outline-js ()
        "Call `lsp-symbol-outline-create-buffer-window' with js specific
-functions. Creates LSP sym ouline buffer."
+functions. Ensure tern server is running in correct project dir. Creates LSP sym
+ouline buffer."
        (interactive)
        (if (not (equal (tern-project-dir)
                        (ignore-errors
@@ -346,7 +350,10 @@ functions. Creates LSP sym ouline buffer."
            (progn
              (ignore-errors (kill-process (get-process "LSP-S-O-tern")))
              (lsp-symbol-outline-tern-start-server (lambda (on e) nil))
-             (sit-for 3)))
+             (sit-for 3)
+             (add-hook 'kill-buffer-hook
+                       #'lsp-symbol-outlline--kill-tern-fn
+                       nil t)))
        (lsp-symbol-outline-create-buffer-window
         #'lsp-symbol-outline--get-symbol-end-line
         #'lsp-symbol-outline--set-placeholder-depth
