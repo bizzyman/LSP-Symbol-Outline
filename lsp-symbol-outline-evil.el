@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2018 bizzyman
 
-;; Version: 0.0.2
+;; Version: 0.0.3
 ;; Homepage: https://github.com/bizzyman/LSP-Symbol-Outline
 ;; Keywords: languages, lsp, outline, evil
 
