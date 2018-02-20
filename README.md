@@ -46,6 +46,7 @@ Bind one of the following functions, or call  from `M-:`:\
 `(lsp-symbol-outline-make-outline-python)`\
 `(lsp-symbol-outline-make-outline-js)`\
 `(lsp-symbol-outline-make-outline-java)`\
+`(lsp-symbol-outline-make-outline-C)`\
 OR use the following convenience function:
 ```
 (defun lsp-symbol-outline-create-conditional ()
