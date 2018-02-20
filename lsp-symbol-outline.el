@@ -223,7 +223,8 @@ Returns arg string based on whether it is empty or not."
                  (progn (forward-char -1) (point))
                  (progn (forward-sexp) (point)))
            ("()" nil)
-           (SYMBOL (s-collapse-whitespace SYMBOL)))))
+           (SYMBOL (s-replace-all '(("( " . "(") (" )" . ")"))
+                    (s-collapse-whitespace SYMBOL))))))
 
 (defun lsp-symbol-outline--create-symbols-list (sym-end-handler
                                                 depth-handler
@@ -311,11 +312,18 @@ List of plists is returned by the local var agg-items."
     (reverse agg-items)))
 
 (defun lsp-symbol-outline--sort-list-by-index (list)
-       "Sort list of plists by their :symbol-start-point property.
-Return list of plists in order they appear in document."
-       (--sort (< (plist-get it    :symbol-start-point)
-                  (plist-get other :symbol-start-point))
-               list))
+       "Sort list of plists by their :symbol-start-point property and update
+indexes. Return list of plists in order they appear in document."
+       (let ((list_ list)
+             (index 1))
+         (setq list_
+               (--sort (< (plist-get it    :symbol-start-point)
+                          (plist-get other :symbol-start-point))
+                       list_))
+        (dolist (item list_)
+          (plist-put item :index index)
+          (setq index (1+ index)))
+        list_))
 
 (defun lsp-symbol-outline--tree-sort (list)
        "Sort list of symbol plists into a hierarchical tree. This is done in two

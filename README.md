@@ -25,6 +25,8 @@ My goal is to publish this on melpa some day which will auto-install dependencie
 
 ## Install instructions
 
+Add this project to your load path and either `require` or `use-package`.
+
 In order to get the pretty symbol glyphs you must install the font 'atomicons.ttf' from this repo.
 
 You must have lsp-mode installed and the required servers for the language you want to use. 

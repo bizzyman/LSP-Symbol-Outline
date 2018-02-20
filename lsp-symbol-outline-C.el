@@ -335,8 +335,6 @@ C specific."
            (setq global-counter (1+ global-counter))))
        list)
 
-
-
 ;;;###autoload
 (defun lsp-symbol-outline-make-outline-C ()
        "Call `lsp-symbol-outline-create-buffer-window' with C specific
