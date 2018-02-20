@@ -53,7 +53,7 @@ HASHT-RANGE and jumping to matching } brace. Return line number."
          (lsp-symbol-outline--jump-paren)
          (point)))
 
-(defun lsp-symbol-outline--get-symbol-docs-java (plist-item)
+(defun lsp-symbol-outline--get-symbol-docs-java (_plist-item)
        "Move to :symbol-start-point and parse javadoc block above symbol.
 Return first sentence of block as string."
        (vertical-motion -1)
@@ -90,30 +90,13 @@ Iterates over symbol list. Java specific argument printing."
                (ignore-errors
                  (replace-regexp-in-string
                   "\n" ""
-                  (replace-regexp-in-string
-                   " -> .+" ""
-                   (plist-get item :args))))))
+                  (plist-get item :args)))))
           (if arg-string
               (progn
                 (insert (propertize arg-string
                                     'face 'lsp-symbol-outline-arg-face
                                     'font-lock-ignore 't))))))
     (insert "\n")))
-
-(defun lsp-symbol-outline--insert-sym-kind-name (same-kind-list)
-       "Insert string based on plist's :kind property. Uses
-`lsp-symbol-outline-symbol-kind-alist' for name associations."
-       (insert (if (equal (plist-get (car same-kind-list) :kind) 5)
-                   (propertize
-                    (format "%ses\n"
-                            (alist-get (plist-get (car same-kind-list) :kind)
-                                       lsp-symbol-outline-symbol-kind-alist))
-                    'face 'default)
-                 (propertize
-                  (format "%ss\n"
-                          (alist-get (plist-get (car same-kind-list) :kind)
-                                     lsp-symbol-outline-symbol-kind-alist))
-                  'face 'default))))
 
 (defun lsp-symbol-outline--print-outline-sorted-java (list-sorted)
        "Print a symbol outline grouped by symbol kind. Takes list of symbol
@@ -151,14 +134,12 @@ Java specific."
                           (ignore-errors
                             (replace-regexp-in-string
                              "\n" ""
-                             (replace-regexp-in-string
-                              " -> .+" ""
-                         (plist-get item :args))))))
+                             (plist-get item :args)))))
                      (if arg-string
                          (progn
                            (insert (propertize arg-string
                                                'face 'lsp-symbol-outline-arg-face
-                                               'font-lock-ignore 't))))))     
+                                               'font-lock-ignore 't))))))
                (insert "\n"))
              (insert " \t \n"))))
        (save-excursion
@@ -168,9 +149,8 @@ Java specific."
          (delete-region (point) (mark)))
        (delete-trailing-whitespace))
 
-
 (defun lsp-symbol-outline--finalize-arg-props-java ()
-       "Parse buffer for colon char and find argument types. Position of types
+       "Parse buffer for comma char and find argument types. Position of types
 is passed to `lsp-symbol-outline--set-arg-type-props' which sets different text
 properties on argument type information.
 

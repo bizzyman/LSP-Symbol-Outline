@@ -216,7 +216,7 @@ return buffer contents between parens. Saves excursion so that next operation -
 :docs lookup - can continue from :symbol-start-point.
 
 Returns arg string based on whether it is empty or not."
-       (goto-line (plist-get plist-item :symbol-start-point))
+       (goto-char (plist-get plist-item :symbol-start-point))
        (save-excursion
          (search-forward "(" nil t)
          (pcase (buffer-substring-no-properties
