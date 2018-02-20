@@ -42,10 +42,10 @@ You must have the tern package installed and a .tern-project file in the root of
 
 ## Usage
 
-Bind one of the following functions, or call  from `M-:`:
-`(lsp-symbol-outline-make-outline-python)`
-`(lsp-symbol-outline-make-outline-js)`
-`(lsp-symbol-outline-make-outline-java)`
+Bind one of the following functions, or call  from `M-:`:\
+`(lsp-symbol-outline-make-outline-python)`\
+`(lsp-symbol-outline-make-outline-js)`\
+`(lsp-symbol-outline-make-outline-java)`\
 OR use the following convenience function:
 ```
 (defun lsp-symbol-outline-create-conditional ()
