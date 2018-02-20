@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2018 bizzyman
 
-;; Version: 0.0.2
+;; Version: 0.0.3
 ;; Homepage: https://github.com/bizzyman/LSP-Symbol-Outline
 ;; Keywords: languages, lsp, outline, python
 
@@ -43,7 +43,7 @@
 build a symbol hierarchy.
 
 Set the python special :parsed-depth property first by reading the
-:symbol-start-line property and parsing `current-indentation',
+:symbol-start-point property and parsing `current-indentation',
 dividing by `python-indent'. For each symbol the previous symbol's
 :parsed-depth property is then checked so that no indentation level
 exceeds the previous indentation level by more than 1. This is
@@ -52,7 +52,7 @@ impression about subscopes. The :depth property is then set.
 Returns plist."
        (plist-put plist-item :parsed-depth
                   (save-excursion
-                    (goto-line (plist-get plist-item :symbol-start-line))
+                    (goto-line (plist-get plist-item :symbol-start-point))
                     (/ (current-indentation) python-indent)))
        ;; now check prev :parsed-depth and set :depth
        (if (ignore-errors (= (plist-get plist-item :parsed-depth)
@@ -80,11 +80,11 @@ cleanup string. Return first sentence of docstring."
 (defun lsp-symbol-outline--get-symbol-args-python (plist-item hasht-range)
        "Find symbol start line, move to opening param delimiting \"(\" and
 return buffer contents between parens. Saves excursion so that next operation -
-:docs lookup - can continue from :symbol-start-line. Do additional checks
+:docs lookup - can continue from :symbol-start-point. Do additional checks
 for python files to ensure imports do not mess up paren parsing.
 
 Returns arg string based on whether it is empty or not."
-       (goto-line (plist-get plist-item :symbol-start-line))
+       (goto-line (plist-get plist-item :symbol-start-point))
        (save-excursion
          (if (progn
                (and (search-forward "("

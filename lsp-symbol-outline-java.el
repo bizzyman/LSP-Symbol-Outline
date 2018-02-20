@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2018 bizzyman
 
-;; Version: 0.0.2
+;; Version: 0.0.3
 ;; Homepage: https://github.com/bizzyman/LSP-Symbol-Outline
 ;; Keywords: languages, lsp, outline, java
 
@@ -54,7 +54,7 @@ HASHT-RANGE and jumping to matching } brace. Return line number."
          (point)))
 
 (defun lsp-symbol-outline--get-symbol-docs-java (plist-item)
-       "Move to :symbol-start-line and parse javadoc block above symbol.
+       "Move to :symbol-start-point and parse javadoc block above symbol.
 Return first sentence of block as string."
        (vertical-motion -1)
        (if (and (search-forward "*/" (line-end-position) t)
@@ -264,7 +264,7 @@ Java specific."
 
 ;;;###autoload
 (defun lsp-symbol-outline-make-outline-java ()
-  "Call `lsp-symbol-outline-create-buffer-window' with js specific
+  "Call `lsp-symbol-outline-create-buffer-window' with java specific
 functions. Creates LSP sym ouline buffer."
   (interactive)
   (lsp-symbol-outline-create-buffer-window

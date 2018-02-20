@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2018 bizzyman
 
-;; Version: 0.0.2
+;; Version: 0.0.3
 ;; Homepage: https://github.com/bizzyman/LSP-Symbol-Outline
 ;; Keywords: languages, lsp, outline
 
@@ -213,10 +213,10 @@ Ensure that lsp-mode is on and enabled."
 (defun lsp-symbol-outline--get-symbol-args-generic (plist-item hasht-range)
        "Find symbol start line, move to opening param delimiting \"(\" and
 return buffer contents between parens. Saves excursion so that next operation -
-:docs lookup - can continue from :symbol-start-line.
+:docs lookup - can continue from :symbol-start-point.
 
 Returns arg string based on whether it is empty or not."
-       (goto-line (plist-get plist-item :symbol-start-line))
+       (goto-line (plist-get plist-item :symbol-start-point))
        (save-excursion
          (search-forward "(" nil t)
          (pcase (buffer-substring-no-properties
@@ -260,18 +260,18 @@ List of plists is returned by the local var agg-items."
              (if (memq hasht-kind '(5 6 12)) ;is symbol function or class
                  (progn
                    ;; 3 - func/class start range
-                   (plist-put plist-item :symbol-start-line
+                   (plist-put plist-item :symbol-start-point
                               (lsp--position-to-point
                                (gethash "start" hasht-range)))
                    ;; 4 - func/class end range
-                   (plist-put plist-item :symbol-end-line
+                   (plist-put plist-item :symbol-end-point
                               (funcall sym-end-handler hasht-range)))
                ;; 3 - var start range
-               (plist-put plist-item :symbol-start-line
+               (plist-put plist-item :symbol-start-point
                           (lsp--position-to-point
                            (gethash "start" hasht-range)))
                ;; 4 - var end range
-               (plist-put plist-item :symbol-end-line
+               (plist-put plist-item :symbol-end-point
                           (lsp--position-to-point
                            (gethash "end" hasht-range))))
 
@@ -283,7 +283,6 @@ List of plists is returned by the local var agg-items."
                         (lsp-symbol-outline--get-symbol-column hasht-range))
 
              ;; get arguments and docstring
-
              (save-excursion
                (if (or (memq hasht-kind '(6 12))
                        (and (equal major-mode 'python-mode)
@@ -307,16 +306,16 @@ List of plists is returned by the local var agg-items."
     (reverse agg-items)))
 
 (defun lsp-symbol-outline--sort-list-by-index (list)
-       "Sort list of plists by their :symbol-start-line property.
+       "Sort list of plists by their :symbol-start-point property.
 Return list of plists in order they appear in document."
-       (--sort (< (plist-get it    :symbol-start-line)
-                  (plist-get other :symbol-start-line))
+       (--sort (< (plist-get it    :symbol-start-point)
+                  (plist-get other :symbol-start-point))
                list))
 
 (defun lsp-symbol-outline--tree-sort (list)
        "Sort list of symbol plists into a hierarchical tree. This is done in two
-stages. First compare :symbol-end-line of current symbol - the `global-counter'
-local var - and find the next symbol with a higher :symbol-end-line - the
+stages. First compare :symbol-end-point of current symbol - the `global-counter'
+local var - and find the next symbol with a higher :symbol-end-point - the
 `local-counter' local var. Second, all symbol's depth properties between
 `global-counter' and `local-counter' are incremented by one. Repeat for every
 symbol.
@@ -329,17 +328,17 @@ Return tree sorted list of plists."
          (while (< global-counter list-length)
            ;; check if end-point of current symbol greater than next symbol
            (if (ignore-errors (> (plist-get (nth global-counter list)
-                                            :symbol-end-line)
+                                            :symbol-end-point)
                                  (plist-get (nth (1+ global-counter) list)
-                                            :symbol-end-line)))
+                                            :symbol-end-point)))
                ;; if it is > find the next symbol with end-point
                ;; > than symbol at index global-counter
                (let ((local-counter (1+ global-counter)))
                  (while (ignore-errors
                           (> (plist-get (nth global-counter list)
-                                        :symbol-end-line)
+                                        :symbol-end-point)
                              (plist-get (nth local-counter list)
-                                        :symbol-end-line)))
+                                        :symbol-end-point)))
                         (setq local-counter (1+ local-counter)))
                  (setq local-end local-counter)
                  (setq local-counter (1+ global-counter))
@@ -513,7 +512,7 @@ chars."
 original document buffer."
        `(lambda (x)
           (switch-to-buffer-other-window ,buf)
-          (goto-char ,(plist-get item :symbol-start-line))))
+          (goto-char ,(plist-get item :symbol-start-point))))
 
 (defun lsp-symbol-outline--print-button (item buf)
        "Print the button that handles the `lsp-symbol-outline-show-docstring-tip'
@@ -561,7 +560,7 @@ from. Return line number."
                    (car
                     (last
                      (-filter
-                      (lambda (x) (< (plist-get x :symbol-start-line)
+                      (lambda (x) (< (plist-get x :symbol-start-point)
                                      current-line))
                       list)))
                    list)))))
@@ -649,8 +648,8 @@ data."
            (lsp-symbol-outline--delete-idle-timer-overlays)
            (dolist (i buffer-orig-lsp-outline-list)
              (lsp-symbol-outline-add-idle-timer-highlight-props
-              (plist-get i :symbol-start-line)
-              (plist-get i :symbol-end-line)
+              (plist-get i :symbol-start-point)
+              (plist-get i :symbol-end-point)
               (plist-get i :line)))
            (lsp-symbol-outline-highlight-symbol))))
 
@@ -678,8 +677,8 @@ order of symbol appearance in source document."
            (lsp-symbol-outline--delete-idle-timer-overlays)
            (dolist (i buffer-orig-lsp-outline-list)
              (lsp-symbol-outline-add-idle-timer-highlight-props
-              (plist-get i :symbol-start-line)
-              (plist-get i :symbol-end-line)
+              (plist-get i :symbol-start-point)
+              (plist-get i :symbol-end-point)
               (plist-get i :line)))
            (lsp-symbol-outline-highlight-symbol))))
 
@@ -887,8 +886,8 @@ and use old one instead."
              ;; add run-with-idle-timer for detecing which symbol cursor in
            (dolist (i lsp-outline-list)
              (lsp-symbol-outline-add-idle-timer-highlight-props
-              (plist-get i :symbol-start-line)
-              (plist-get i :symbol-end-line)
+              (plist-get i :symbol-start-point)
+              (plist-get i :symbol-end-point)
               (plist-get i :line)))
            (setq-local lsp-s-o-idle-timer-highlight
                        (run-with-idle-timer 0.3 t

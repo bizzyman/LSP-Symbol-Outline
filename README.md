@@ -75,11 +75,12 @@ Underlined symbols have documentation.
 * **i** cycle argument visibility
 * **gh** go up scope
 * **gk** go up sibling
-* **gj** do down sibling
+* **gj** go down sibling
 * **w** widen to widest column
 * **s** toggle sorted view (sorts by symbol category)
 * **l** peek symbol (goes to location in document, but does not lose focus)
 * **d** show documentation string if available
+* **m** mark (select) the symbol name at point
 
 ## Notes on current state of this package, lsp and bugs
 

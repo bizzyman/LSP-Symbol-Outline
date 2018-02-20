@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2018 bizzyman
 
-;; Version: 0.0.2
+;; Version: 0.0.3
 ;; Homepage: https://github.com/bizzyman/LSP-Symbol-Outline
 ;; Keywords: languages, lsp, outline, javascript
 
@@ -103,7 +103,7 @@ returning the function args and their types for func at POINT-POS."
                 (s-chop-prefix (tern-project-dir) (buffer-file-name))))
               (url-show-status nil)
               (url (url-parse-make-urlobj "http" nil nil
-                                          tern-server
+                                          "127.0.0.1"
                                           lsp-s-o-tern-known-port
                                           "/" nil nil nil))
               (url-current-object url))
@@ -139,10 +139,10 @@ returning the function args and their types for func at POINT-POS."
 (defun lsp-symbol-outline--get-symbol-args-js (plist-item hasht-range)
        "Get the arguments for symbol by moving to symbol definition in buffer and
 making a tern request there."
-       (goto-char (plist-get plist-item :symbol-start-line))
+       (goto-char (plist-get plist-item :symbol-start-point))
        (if
         (search-forward "("
-                        (plist-get plist-item :symbol-end-line)
+                        (plist-get plist-item :symbol-end-point)
                         t)
            (lsp-symbol-outline--tern-request-sync
             (- (point) 2))
@@ -152,7 +152,7 @@ making a tern request there."
        "Get the docstring for symbol by parsing the JSDoc block above symbol
 seeing as this function is invoked inside a `save-excursion', so no need to move
 to symbol definition twice."
-       (goto-char (plist-get plist-item :symbol-start-line))
+       (goto-char (plist-get plist-item :symbol-start-point))
        (vertical-motion -1)
        (if (and (search-forward "*/" (line-end-position) t)
                 (forward-comment -1)
