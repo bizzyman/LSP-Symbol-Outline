@@ -1,5 +1,5 @@
 # LSP-Symbol-Outline
-A tree like view for symbols in Emacs using the Language Server Protocol. Currently works with Javascript, Python and Java.
+A tree like view for symbols in Emacs using the Language Server Protocol. Currently works with Javascript, Python, C/C++ and Java.
 
 ![LSP-Symbol-outline-sorted](https://i.imgur.com/1koizch.png)
 ![LSP-Symbol-outline](https://i.imgur.com/mpDgD3Y.png)
@@ -18,6 +18,7 @@ My goal is to publish this on melpa some day which will auto-install dependencie
 
 (optionally, install for languages you use)
 * lsp-java
+* cquery
 * lsp-python
 * lsp-javascript-typescript
 * tern (for func arguments)
