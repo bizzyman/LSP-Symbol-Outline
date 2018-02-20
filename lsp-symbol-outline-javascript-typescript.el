@@ -357,7 +357,7 @@ ouline buffer."
                        #'lsp-symbol-outlline--kill-tern-fn
                        nil t)))
        (lsp-symbol-outline-create-buffer-window
-        #'lsp-symbol-outline--get-symbol-end-line
+        #'lsp-symbol-outline--get-symbol-end-point
         #'lsp-symbol-outline--set-placeholder-depth
         #'lsp-symbol-outline--get-symbol-args-js
         #'lsp-symbol-outline--get-symbol-docs-js

@@ -52,7 +52,7 @@ impression about subscopes. The :depth property is then set.
 Returns plist."
        (plist-put plist-item :parsed-depth
                   (save-excursion
-                    (goto-line (plist-get plist-item :symbol-start-point))
+                    (goto-char (plist-get plist-item :symbol-start-point))
                     (/ (current-indentation) python-indent)))
        ;; now check prev :parsed-depth and set :depth
        (if (ignore-errors (= (plist-get plist-item :parsed-depth)
@@ -84,7 +84,7 @@ return buffer contents between parens. Saves excursion so that next operation -
 for python files to ensure imports do not mess up paren parsing.
 
 Returns arg string based on whether it is empty or not."
-       (goto-line (plist-get plist-item :symbol-start-point))
+       (goto-char (plist-get plist-item :symbol-start-point))
        (save-excursion
          (if (progn
                (and (search-forward "("
@@ -104,6 +104,7 @@ Returns arg string based on whether it is empty or not."
        "Insert indentation, icon, button and any args into symbol outline buffer.
 Iterates over symbol list. Python specific argument printing."
        (dolist (item list)
+         (plist-put item :line (string-to-number (format-mode-line "%l")))
          (insert "  ")
          ;; indentation
          (lsp-symbol-outline--print-indentation item)
@@ -154,6 +155,7 @@ Python specific."
              (lsp-symbol-outline--insert-sym-kind-name same-kind-list)
 
              (dolist (item same-kind-list)
+               (plist-put item :line (string-to-number (format-mode-line "%l")))
                ;; spaces
                (insert (make-string 5 32))
                ;; button
@@ -209,7 +211,7 @@ Python specific."
 functions. Creates LSP sym ouline buffer."
        (interactive)
        (lsp-symbol-outline-create-buffer-window
-        #'lsp-symbol-outline--get-symbol-end-line
+        #'lsp-symbol-outline--get-symbol-end-point
         #'lsp-symbol-outline--get-symbol-depth-python
         #'lsp-symbol-outline--get-symbol-args-python
         #'lsp-symbol-outline--get-symbol-docs-python

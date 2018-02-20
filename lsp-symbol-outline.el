@@ -152,8 +152,8 @@ kind names.")
 
 (defface lsp-symbol-outline-inside-current-symbol
          ;; '((t :foreground "#0C1314" :background "#9ea8aa"))
-         '((t :foreground "deep sky blue"))
-         ;; '((t :inverse-video t))
+         ;; '((t :foreground "deep sky blue"))
+         '((t :inherit default))
          "Face for ."
          :group 'lsp-symbol-outline-faces)
 
@@ -194,8 +194,8 @@ Ensure that lsp-mode is on and enabled."
                     (gethash "start"
                              hasht-range))))
 
-(defun lsp-symbol-outline--get-symbol-end-line (hasht-range)
-       "Get the symbol end line from hash table HASHT-RANGE.
+(defun lsp-symbol-outline--get-symbol-end-point (hasht-range)
+       "Get the symbol end point from hash table HASHT-RANGE.
  Return line number."
        (lsp--position-to-point (gethash "end"
                                         hasht-range)))
@@ -256,7 +256,7 @@ List of plists is returned by the local var agg-items."
              ;; 2 - KIND
              (plist-put plist-item :kind hasht-kind)
 
-             ;; 3 & 4 SYMBOL START AND END LINE
+             ;; 3 & 4 SYMBOL START AND END POSITION
              (if (memq hasht-kind '(5 6 12)) ;is symbol function or class
                  (progn
                    ;; 3 - func/class start range
@@ -274,6 +274,11 @@ List of plists is returned by the local var agg-items."
                (plist-put plist-item :symbol-end-point
                           (lsp--position-to-point
                            (gethash "end" hasht-range))))
+
+             ;; SYMBOL END LINE
+             (plist-put plist-item :symbol-end-line
+                        (gethash "line"
+                         (gethash "end" hasht-range)))
 
              ;; 5 - DEPTH
              (setq plist-item (funcall depth-handler plist-item))
@@ -327,10 +332,20 @@ Return tree sorted list of plists."
              (list-length (length list)))
          (while (< global-counter list-length)
            ;; check if end-point of current symbol greater than next symbol
-           (if (ignore-errors (> (plist-get (nth global-counter list)
-                                            :symbol-end-point)
-                                 (plist-get (nth (1+ global-counter) list)
-                                            :symbol-end-point)))
+           (if (if (and (memq  (plist-get (nth global-counter list)
+                                          :kind)
+                               '(7 13 14))
+                        (memq  (plist-get (nth (1+ global-counter) list)
+                                          :kind)
+                               '(7 13 14)))
+                   (ignore-errors (> (plist-get (nth global-counter list)
+                                                :symbol-end-line)
+                                     (plist-get (nth (1+ global-counter) list)
+                                                :symbol-end-line)))
+                   (ignore-errors (> (plist-get (nth global-counter list)
+                                             :symbol-end-point)
+                                  (plist-get (nth (1+ global-counter) list)
+                                             :symbol-end-point))))
                ;; if it is > find the next symbol with end-point
                ;; > than symbol at index global-counter
                (let ((local-counter (1+ global-counter)))
@@ -916,7 +931,7 @@ and use old one instead."
 
          ;; HACK to stop window size jumping around
          (setq window-size-fixed 'width)
-         (toggle-truncate-lines 1)))
+         (toggle-truncate-lines 1)))    ;TODO make quiet
 
 (defun lsp-symbol-outline-cycle-arg-vis ()
        "Call the function returned by the buffer local variable
