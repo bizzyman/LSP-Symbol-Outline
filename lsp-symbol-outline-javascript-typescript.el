@@ -279,7 +279,7 @@ ouline buffer."
         #'lsp-symbol-outline--tree-sort
         #'lsp-symbol-outline--print-outline-js
         #'lsp-symbol-outline--print-outline-sorted-js
-        #'lsp-symbol-outline--finalize-arg-props-js
+        #'lsp-symbol-outline--finalize-arg-props-colon-generic
         #'lsp-symbol-outline--cycle-arg-visibility-colon-generic))
 
 (provide 'lsp-symbol-outline-javascript-typescript)

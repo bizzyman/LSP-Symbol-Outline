@@ -56,7 +56,7 @@ Return first sentence of block as string."
                ;; (re-search-forward "[.?!\n]" nil t)
                (progn
                  (save-match-data
-                   (re-search-forward "\\([.?!]\\|\\(^ *[^/ ]\\)\\)")
+                   (re-search-forward "\\([?!]\\|\\(\\.[ $]\\)\\|\\(^ *[^/ ]\\)\\)")
                    (match-beginning 1)))))))))
 
 (defun lsp-symbol-outline--find-end-of-arg-type-rust ()

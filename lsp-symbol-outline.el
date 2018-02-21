@@ -205,18 +205,23 @@ Ensure that lsp-mode is on and enabled."
 HASHT-RANGE and jumping to matching } brace. Return line number.
 For use with languages that have C/Java like syntax."
        (save-excursion
-         (goto-line
-          (1+ (gethash "line"
-                       (gethash "end"
-                                hasht-range))))
-         (move-to-column
-          (gethash "character"
-                   (gethash "end"
-                            hasht-range)))
-         (search-forward "{" nil t)
-         (backward-char)
-         (lsp-symbol-outline--jump-paren)
-         (1+ (point))))
+         (if
+             (progn
+               (goto-line
+                (1+ (gethash "line"
+                             (gethash "end"
+                                      hasht-range))))
+               (move-to-column
+                (gethash "character"
+                         (gethash "end"
+                                  hasht-range)))
+               ;; TODO bound can fail if args on multiple lines
+               (search-forward "{" (line-end-position) t))
+             (progn
+               (backward-char)
+               (lsp-symbol-outline--jump-paren)
+               (1+ (point)))
+           (lsp-symbol-outline--get-symbol-end-point hasht-range))))
 
 (defun lsp-symbol-outline--get-symbol-column (hasht-range)
        "Get the symbol start column from hash table HASHT-RANGE.

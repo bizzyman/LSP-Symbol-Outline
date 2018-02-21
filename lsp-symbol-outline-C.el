@@ -42,6 +42,7 @@
        "Replace non doc chars and get first sentence in doc block."
        (push-mark (point) t)
        (forward-char)
+       ;; TODO using / fails
        (re-search-forward "[.?!/\n]" nil t)
        (s-collapse-whitespace (s-replace-regexp
                                "@\\w+" ""
