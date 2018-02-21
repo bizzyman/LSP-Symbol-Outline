@@ -22,8 +22,8 @@ My goal is to publish this on melpa some day which will auto-install dependencie
 * lsp-go
 * lsp-python
 * lsp-javascript-typescript
-* cquery
 * tern (for func arguments)
+* cquery
 
 ## Install instructions
 
@@ -53,6 +53,7 @@ Bind one of the following functions, or call  from `M-:`:\
 `(lsp-symbol-outline-make-outline-C)`\
 `(lsp-symbol-outline-make-outline-rust)`\
 `(lsp-symbol-outline-make-outline-go)`\
+
 OR use the following convenience function:
 ```
 (defun lsp-symbol-outline-create-conditional ()
