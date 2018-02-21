@@ -100,7 +100,7 @@ Underlined symbols have documentation.
 
 ## Notes on current state of this package, lsp and bugs
 
-As mentioned at the beginning, this is an early stage package which will undergo many changes in the future. The next priority is to structure this package properly and minimize dependencies (including evil**. 
+As mentioned at the beginning, this is an early stage package which will undergo many changes in the future. The next priority is to structure this package properly and minimize dependencies. 
 
 ### LSP
 
