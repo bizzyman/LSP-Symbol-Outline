@@ -200,6 +200,24 @@ Ensure that lsp-mode is on and enabled."
        (lsp--position-to-point (gethash "end"
                                         hasht-range)))
 
+(defun lsp-symbol-outline--get-symbol-end-point-clike-generic (hasht-range)
+       "Get the symbol end point by moving point to end position in
+HASHT-RANGE and jumping to matching } brace. Return line number.
+For use with languages that have C/Java like syntax."
+       (save-excursion
+         (goto-line
+          (1+ (gethash "line"
+                       (gethash "end"
+                                hasht-range))))
+         (move-to-column
+          (gethash "character"
+                   (gethash "end"
+                            hasht-range)))
+         (search-forward "{" nil t)
+         (backward-char)
+         (lsp-symbol-outline--jump-paren)
+         (1+ (point))))
+
 (defun lsp-symbol-outline--get-symbol-column (hasht-range)
        "Get the symbol start column from hash table HASHT-RANGE.
  Return column number."
@@ -354,6 +372,73 @@ Return tree sorted list of plists."
                                              :symbol-end-point)
                                   (plist-get (nth (1+ global-counter) list)
                                              :symbol-end-point))))
+               ;; if it is > find the next symbol with end-point
+               ;; > than symbol at index global-counter
+               (let ((local-counter (1+ global-counter)))
+                 (while (ignore-errors
+                          (> (plist-get (nth global-counter list)
+                                        :symbol-end-point)
+                             (plist-get (nth local-counter list)
+                                        :symbol-end-point)))
+                        (setq local-counter (1+ local-counter)))
+                 (setq local-end local-counter)
+                 (setq local-counter (1+ global-counter))
+                 (while (< local-counter local-end)
+                        (plist-put (nth local-counter list)
+                                   :depth
+                                   (1+ (plist-get (nth local-counter list)
+                                                  :depth)))
+                        (setq local-counter (1+ local-counter)))))
+           (setq global-counter (1+ global-counter))))
+       list)
+
+(defun lsp-symbol-outline--remove-arg-indices (list)
+       "Remove symbols that are already covered by the :args plist prop."
+       (let ((indices))
+         (dolist (item list)
+           (if (plist-get item :args)
+               (let ((m (replace-regexp-in-string "\n" "" (plist-get item :args)))
+                     (c))
+                 (if m
+                     (progn
+                       (setq c (s-count-matches "," m))
+                       (push (number-sequence (plist-get item :index)
+                                              (+ (plist-get item :index)
+                                                 (if (equal c 0) 0 c)) 1)
+                             indices))))))
+         (setq indices (-flatten indices))
+         (setf list (-remove-at-indices indices list))))
+
+(defun lsp-symbol-outline--tree-sort-rem-args (list)
+       "Sort list of symbol plists into a hierarchical tree. This is done in two
+stages. First remove function args from symbols list. Then compare
+:symbol-end-point of current symbol - the `global-counter' local var - and find
+the next symbol with a higher :symbol-end-point - the `local-counter' local var.
+Third, all symbol's depth properties between `global-counter' and
+`local-counter' are incremented by one. Repeat for every symbol.
+
+Return tree sorted list of plists."
+       (setq list (lsp-symbol-outline--remove-arg-indices list))
+       (let ((global-counter 0)
+             (local-counter 0)
+             (local-end 0)
+             (list-length (length list)))
+         (while (< global-counter list-length)
+           ;; check if end-point of current symbol greater than next symbol
+           (if (if (and (memq  (plist-get (nth global-counter list)
+                                          :kind)
+                               '(7 13 14))
+                        (memq  (plist-get (nth (1+ global-counter) list)
+                                          :kind)
+                               '(7 13 14)))
+                   (ignore-errors (> (plist-get (nth global-counter list)
+                                                :symbol-end-line)
+                                     (plist-get (nth (1+ global-counter) list)
+                                                :symbol-end-line)))
+                 (ignore-errors (> (plist-get (nth global-counter list)
+                                              :symbol-end-point)
+                                   (plist-get (nth (1+ global-counter) list)
+                                              :symbol-end-point))))
                ;; if it is > find the next symbol with end-point
                ;; > than symbol at index global-counter
                (let ((local-counter (1+ global-counter)))
@@ -574,6 +659,86 @@ function is handled by letter 'd' - 100 in ascii."
                              (t
                               'lsp-symbol-outline-var-face))))
 
+(defun lsp-symbol-outline--print-outline-clike-generic (list buf)
+       "Insert indentation, icon, button and any args into symbol outline buffer.
+Iterates over symbol list. For use with langs that resemeble C/Java in syntax."
+       (dolist (item list)
+         (plist-put item :line (string-to-number (format-mode-line "%l")))
+         (insert "  ")
+         ;; indentation
+         (lsp-symbol-outline--print-indentation item)
+         ;; icon
+         (if window-system
+             (lsp-symbol-outline--print-symbol-icon-gui item)
+           (lsp-symbol-outline--print-symbol-icon-term item))
+         ;; button
+         (lsp-symbol-outline--print-button item buf)
+         ;; args
+         (if (plist-get item :args)
+             (let ((arg-string
+                    (ignore-errors
+                      (replace-regexp-in-string
+                       "\n" ""
+                       (plist-get item :args)))))
+               (if arg-string
+                   (progn
+                     (insert (propertize arg-string
+                                         'face 'lsp-symbol-outline-arg-face
+                                         'font-lock-ignore 't))))))
+         (insert "\n")))
+
+(defun lsp-symbol-outline--print-outline-sorted-clike-generic (list-sorted)
+       "Print a symbol outline grouped by symbol kind. Takes list of symbol
+plists LIST-SORTED and prints the symbol icon, the kind name, symbol button and
+any argument information.
+
+LIST-SORTED is filtered to yield only distinct :kind values. LIST-SORTED is then
+iterated over and filtered by each distinct :kind value. Symbols of that kind
+are printed with no regard to indentation or hierarchy.
+For use with langs that resemeble C/Java in syntax."
+       (let ((contains-types (-distinct (-map
+                                         (lambda (x) (plist-get x :kind))
+                                         list-sorted))))
+         (dolist (sym-kind contains-types)
+           (let ((same-kind-list
+                  (-filter (lambda (i) (equal (plist-get i :kind) sym-kind))
+                           list-sorted)))
+             ;; icon
+             (insert "  ")
+             (if window-system
+                 (lsp-symbol-outline--print-symbol-icon-gui (car same-kind-list))
+               (lsp-symbol-outline--print-symbol-icon-term (car same-kind-list)))
+             ;; kind name
+             (lsp-symbol-outline--insert-sym-kind-name same-kind-list)
+
+             (dolist (item same-kind-list)
+               (plist-put item :line (string-to-number (format-mode-line "%l")))
+               ;; spaces
+               (insert (make-string 5 32))
+               ;; button
+               (lsp-symbol-outline--print-button item
+                                                 lsp-symbol-outline-src-buffer)
+               ;; args
+               (if (plist-get item :args)
+                   (let ((arg-string
+                          (ignore-errors
+                            (replace-regexp-in-string
+                             "\n" ""
+                             (plist-get item :args)))))
+                     (if arg-string
+                         (progn
+                           (insert (propertize arg-string
+                                               'face 'lsp-symbol-outline-arg-face
+                                               'font-lock-ignore 't))))))
+               (insert "\n"))
+             (insert " \t \n"))))
+       (save-excursion
+         (end-of-buffer)
+         (set-mark (point))
+         (backward-char 4)
+         (delete-region (point) (mark)))
+       (delete-trailing-whitespace))
+
 (defun lsp-symbol-outline--find-closest-cell (list current-line)
        "Find the closest line to line that main LSP sym outline function called
 from. Return line number."
@@ -640,6 +805,184 @@ text property."
               (lsp-symbol-outline--jump-paren)
               (point))))))
 
+(defun lsp-symbol-outline--finalize-arg-props-clike-generic ()
+       "Parse buffer for comma char and find argument types. Position of types
+is passed to `lsp-symbol-outline--set-arg-type-props' which sets different text
+properties on argument type information.
+
+Regex parsing is used to set invisible properties to toggle hiding type
+information. For use with langs that have C/Java like syntax."
+       (save-excursion
+         (goto-char (point-min))
+         (while (re-search-forward ")" nil 'noerror 1)
+           (search-backward " " (line-beginning-position) t)
+           (lsp-symbol-outline--set-arg-type-props
+            (point)
+            (progn
+              (or (search-backward "," (line-beginning-position) t)
+                  (search-backward "(" (line-beginning-position) t))
+              (+ (point) 1)))
+           (while
+               (save-excursion (or
+                                (search-backward ","
+                                                 (line-beginning-position) t)
+                                (search-backward "("
+                                                 (line-beginning-position) t)))
+             (search-backward " " (line-beginning-position) t)
+             (lsp-symbol-outline--set-arg-type-props
+              (point)
+              (progn
+                (or (search-backward "," (line-beginning-position) t)
+                    (search-backward "(" (line-beginning-position) t))
+                (+ (point) 1))))
+           (vertical-motion 1))))
+
+(defun lsp-symbol-outline--set-arg-types-inv-clike-generic ()
+       "Parse buffer for comma char and find argument types. Call
+`lsp-symbol-outline--set-arg-props-inv' on found positions to set argument
+information invisible by setting text properties.
+For use with langs that have C/Java like syntax."
+       (save-excursion
+         (goto-char (point-min))
+         (while (re-search-forward ")" nil 'noerror 1)
+           (search-backward " " (line-beginning-position) t)
+           (let ((p (point))
+                 (e))
+             (cond ((search-backward "," (line-beginning-position) t)
+                    (setq e (+ (point) 1)))
+                   ((search-backward "(" (line-beginning-position) t)
+                    (progn (setq e (+ (point) 1)) (setq p (1+ p)))))
+             (when e (lsp-symbol-outline--set-arg-props-inv
+                      p e)))
+           (while
+               (save-excursion (or
+                                (search-backward ","
+                                                 (line-beginning-position) t)
+                                (search-backward "("
+                                                 (line-beginning-position) t)))
+             (search-backward " " (line-beginning-position) t)
+             (let ((p (point)) (e))
+               (cond ((search-backward "," (line-beginning-position) t)
+                      (setq e (+ (point) 1)))
+                     ((search-backward "(" (line-beginning-position) t)
+                      (progn (setq e (+ (point) 1)) (setq p (1+ p)))))
+               (lsp-symbol-outline--set-arg-props-inv
+                p e)))
+           (vertical-motion 1))))
+
+(defun lsp-symbol-outline--cycle-arg-visibility-clike-generic ()
+       "If `lsp-symbol-outline-args-inv' is 0, set only argument types invisible.
+If `lsp-symbol-outline-args-inv' is 1, set arguments invisible.
+If `lsp-symbol-outline-args-inv' is 2, set all to visible.
+For use with langs that have C/Java like syntax."
+       (cond
+        ;; arg types invisible
+        ((equal lsp-symbol-outline-args-inv 0)
+         (read-only-mode 0)
+         (lsp-symbol-outline--set-arg-types-inv-clike-generic)
+         (setq-local lsp-symbol-outline-args-inv 1)
+         (read-only-mode 1))
+        ;; args invisible
+        ((equal lsp-symbol-outline-args-inv 1)
+         (read-only-mode 0)
+         (lsp-symbol-outline--set-info-inv)
+         (setq-local lsp-symbol-outline-args-inv 2)
+         (read-only-mode 1))
+        ;; all visible
+        ((equal lsp-symbol-outline-args-inv 2)
+         (read-only-mode 0)
+         (progn
+           (remove-list-of-text-properties (point-min) (point-max) '(invisible))
+           (lsp-symbol-outline--set-info-vis)
+           (lsp-symbol-outline--finalize-arg-props-clike-generic))
+         (setq-local lsp-symbol-outline-args-inv 0)
+         (read-only-mode 1))))
+
+(defun lsp-symbol-outline--find-end-of-arg-type-colon-generic ()
+       "Parse current line to find the end range of type information of current
+arg. For use with langs that delimit arg types with colons."
+       (cond
+        ((looking-at " fn")
+         (search-forward "(")
+         (backward-char 1)
+         (goto-char (plist-get (sp-get-sexp) :end)))
+        ((looking-at " {")
+         (search-forward "{")
+         (backward-char 1)
+         (lsp-symbol-outline--jump-paren)
+         (if
+             (looking-at ".|")
+             (progn
+               (forward-char 2)
+               (cond ((lsp-symbol-outline--jump-paren)
+                      (point))
+                     ((search-forward "," (line-end-position) t)
+                      (1- (point)))
+                     ((search-forward ")" (line-end-position) t)
+                      (1- (point)))))
+           (1+ (point))))
+        (t (progn
+             (backward-char 1)
+             (if (re-search-forward ": .+?," (line-end-position) t 1)
+                 (1- (point))
+               (re-search-forward ": .+?$" (line-end-position) t 1)
+               (- (point) 1))))))
+
+(defun lsp-symbol-outline--finalize-arg-props-colon-generic ()
+       "Parse buffer for colon char and find argument types. Position of types
+is passed to `lsp-symbol-outline--set-arg-type-props' which sets different text
+properties on argument type information.
+
+Regex parsing is used to set invisible properties to toggle hiding type
+information. For use with langs that delimit arg types with colons."
+       (save-excursion
+         (goto-char (point-min))
+         (while (re-search-forward ":" nil 'noerror 1)
+           (let ((ref (match-string-no-properties 1)))
+             (lsp-symbol-outline--set-arg-type-props
+              (1- (point))
+              (lsp-symbol-outline--find-end-of-arg-type-colon-generic))))))
+
+(defun lsp-symbol-outline--set-arg-types-inv-colon-generic ()
+       "Parse buffer for colon char and find argument types. Call
+`lsp-symbol-outline--set-arg-props-inv' on found positions to set argument
+information invisible by setting text properties. For use with langs that delimit arg types with colons."
+  (save-excursion
+    (goto-char (point-min))
+    (while (re-search-forward ":" nil 'noerror 1)
+      (let ((ref (match-string-no-properties 1)))
+        (lsp-symbol-outline--set-arg-props-inv
+         (1- (point))
+         (lsp-symbol-outline--find-end-of-arg-type-colon-generic))))))
+
+(defun lsp-symbol-outline--cycle-arg-visibility-colon-generic ()
+       "If `lsp-symbol-outline-args-inv' is 0, set only argument types invisible.
+If `lsp-symbol-outline-args-inv' is 1, set arguments invisible.
+If `lsp-symbol-outline-args-inv' is 2, set all to visible.
+For use with langs that delimit arg types with colons."
+       (cond
+        ;; arg types invisible
+        ((equal lsp-symbol-outline-args-inv 0)
+         (read-only-mode 0)
+         (lsp-symbol-outline--set-arg-types-inv-colon-generic)
+         (setq-local lsp-symbol-outline-args-inv 1)
+         (read-only-mode 1))
+        ;; args invisible
+        ((equal lsp-symbol-outline-args-inv 1)
+         (read-only-mode 0)
+         (lsp-symbol-outline--set-info-inv)
+         (setq-local lsp-symbol-outline-args-inv 2)
+         (read-only-mode 1))
+        ;; all visible
+        ((equal lsp-symbol-outline-args-inv 2)
+         (read-only-mode 0)
+         (progn
+           (remove-list-of-text-properties (point-min) (point-max) '(invisible))
+           (lsp-symbol-outline--set-info-vis)
+           (lsp-symbol-outline--finalize-arg-props-colon-generic))
+         (setq-local lsp-symbol-outline-args-inv 0)
+         (read-only-mode 1))))
+
 (defun lsp-symbol-outline--sort-by-category (list)
        "Sort list of symbol plists by their :kind property.
 Returns list of plists."
@@ -651,7 +994,7 @@ function contained by `lsp-symbol-outline-print-sorted-func' to print an
 outline grouped by symbol kind. Call function that sets argument text properties.
 Set buffer local variable `lsp-symbol-outline-is-sorted' to t. Find saved line
 data."
-       (let ((line (nth 1 (s-match " +. \\(\\w+\\)"
+       (let ((line (nth 1 (s-match " +. \\([a-zA-Z0-9_-]+\\)"
                                    (buffer-substring-no-properties
                                     (line-beginning-position)
                                     (line-end-position)))))
@@ -680,7 +1023,7 @@ data."
        "Reverse the grouping of symbols by kind and print a symbol outline in
 order of symbol appearance in source document."
        (let ((l (nth 1
-                     (s-match " +. \\(\\w+\\)"
+                     (s-match " +. \\([a-zA-Z0-9_-]+\\)"
                               (buffer-substring-no-properties
                                (line-beginning-position) (line-end-position)))))
              (inhibit-read-only t)
@@ -914,7 +1257,8 @@ and use old one instead."
               (plist-get i :line)))
            (setq-local lsp-s-o-idle-timer-highlight
                        (run-with-idle-timer 0.3 t
-                                            #'lsp-symbol-outline-highlight-symbol)))
+                                            #'lsp-symbol-outline-highlight-symbol))
+           (lsp-symbol-outline-highlight-symbol))
 
          ;; Outline mode for folding symbols
          (outline-minor-mode 1)
@@ -1029,7 +1373,8 @@ buffer."
        "Go to next symbol. Moves point to the beginning of symbol name."
        (interactive)
        (vertical-motion 1)
-       (while (looking-at "$")
+       (while (and (not (eobp))
+               (looking-at "$"))
          (vertical-motion 1))
        (if (not (looking-at-p " *[^ ] "))
            (forward-whitespace 1)
