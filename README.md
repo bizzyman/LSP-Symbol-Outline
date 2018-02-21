@@ -52,7 +52,7 @@ Bind one of the following functions, or call  from `M-:`:\
 `(lsp-symbol-outline-make-outline-java)`\
 `(lsp-symbol-outline-make-outline-C)`\
 `(lsp-symbol-outline-make-outline-rust)`\
-`(lsp-symbol-outline-make-outline-go)`\
+`(lsp-symbol-outline-make-outline-go)`
 
 OR use the following convenience function:
 ```
