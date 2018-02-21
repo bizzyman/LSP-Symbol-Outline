@@ -253,91 +253,6 @@ JS specific."
          (delete-region (point) (mark)))
        (delete-trailing-whitespace))
 
-(defun lsp-symbol-outline--find-end-of-arg-type-js ()
-       "Parse current line to find the end range of type information of current
-arg. JS specific."
-       (cond
-        ((looking-at " fn")
-         (search-forward "(")
-         (backward-char 1)
-         (goto-char (plist-get (sp-get-sexp) :end)))
-        ((looking-at " {")
-         (search-forward "{")
-         (backward-char 1)
-         (lsp-symbol-outline--jump-paren)
-         (if
-             (looking-at ".|")
-             (progn
-               (forward-char 2)
-               (cond ((lsp-symbol-outline--jump-paren)
-                      (point))
-                     ((search-forward "," (line-end-position) t)
-                      (1- (point)))
-                     ((search-forward ")" (line-end-position) t)
-                      (1- (point)))))
-           (1+ (point))))
-        (t (progn
-             (backward-char 1)
-             (if (re-search-forward ": .+?," (line-end-position) t 1)
-                 (1- (point))
-               (re-search-forward ": .+?$" (line-end-position) t 1)
-               (- (point) 1))))))
-
-(defun lsp-symbol-outline--finalize-arg-props-js ()
-       "Parse buffer for colon char and find argument types. Position of types
-is passed to `lsp-symbol-outline--set-arg-type-props' which sets different text
-properties on argument type information.
-
-Regex parsing is used to set invisible properties to toggle hiding type
-information. JS specific."
-       (save-excursion
-         (goto-char (point-min))
-         (while (re-search-forward ":" nil 'noerror 1)
-           (let ((ref (match-string-no-properties 1)))
-             (lsp-symbol-outline--set-arg-type-props
-              (1- (point))
-              (lsp-symbol-outline--find-end-of-arg-type-js))))))
-
-(defun lsp-symbol-outline--set-arg-types-inv-js ()
-       "Parse buffer for colon char and find argument types. Call
-`lsp-symbol-outline--set-arg-props-inv' on found positions to set argument
-information invisible by setting text properties. JS specific."
-  (save-excursion
-    (goto-char (point-min))
-    (while (re-search-forward ":" nil 'noerror 1)
-      (let ((ref (match-string-no-properties 1)))
-        (lsp-symbol-outline--set-arg-props-inv
-         (1- (point))
-         (lsp-symbol-outline--find-end-of-arg-type-js))))))
-
-(defun lsp-symbol-outline--cycle-arg-visibility-js ()
-       "If `lsp-symbol-outline-args-inv' is 0, set only argument types invisible.
-If `lsp-symbol-outline-args-inv' is 1, set arguments invisible.
-If `lsp-symbol-outline-args-inv' is 2, set all to visible.
-JS specific."
-       (cond
-        ;; arg types invisible
-        ((equal lsp-symbol-outline-args-inv 0)
-         (read-only-mode 0)
-         (lsp-symbol-outline--set-arg-types-inv-js)
-         (setq-local lsp-symbol-outline-args-inv 1)
-         (read-only-mode 1))
-        ;; args invisible
-        ((equal lsp-symbol-outline-args-inv 1)
-         (read-only-mode 0)
-         (lsp-symbol-outline--set-info-inv)
-         (setq-local lsp-symbol-outline-args-inv 2)
-         (read-only-mode 1))
-        ;; all visible
-        ((equal lsp-symbol-outline-args-inv 2)
-         (read-only-mode 0)
-         (progn
-           (remove-list-of-text-properties (point-min) (point-max) '(invisible))
-           (lsp-symbol-outline--set-info-vis)
-           (lsp-symbol-outline--finalize-arg-props-js))
-         (setq-local lsp-symbol-outline-args-inv 0)
-         (read-only-mode 1))))
-
 ;;;###autoload
 (defun lsp-symbol-outline-make-outline-js ()
        "Call `lsp-symbol-outline-create-buffer-window' with js specific
@@ -365,9 +280,7 @@ ouline buffer."
         #'lsp-symbol-outline--print-outline-js
         #'lsp-symbol-outline--print-outline-sorted-js
         #'lsp-symbol-outline--finalize-arg-props-js
-        #'lsp-symbol-outline--cycle-arg-visibility-js))
-
-
+        #'lsp-symbol-outline--cycle-arg-visibility-colon-generic))
 
 (provide 'lsp-symbol-outline-javascript-typescript)
 
