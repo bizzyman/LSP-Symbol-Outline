@@ -30,6 +30,14 @@
 
 ;;; Code:
 
+;; Dependencies
+
+(require 'lsp-mode)
+(require 'cquery)
+(require 'lsp-symbol-outline)
+
+;; Defuns
+
 (defun lsp-symbol-outline--get-symbol-docs-C-cleanup ()
        "Replace non doc chars and get first sentence in doc block."
        (push-mark (point) t)

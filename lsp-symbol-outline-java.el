@@ -36,6 +36,8 @@
 (require 'lsp-java)
 (require 'lsp-symbol-outline)
 
+;; Defuns
+
 (defun lsp-symbol-outline--get-symbol-docs-java (_plist-item)
        "Move to :symbol-start-point and parse javadoc block above symbol.
 Return first sentence of block as string."

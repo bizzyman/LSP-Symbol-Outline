@@ -30,6 +30,14 @@
 
 ;;; Code:
 
+;; Dependencies
+
+(require 'lsp-mode)
+(require 'lsp-rust)
+(require 'lsp-symbol-outline)
+
+;; Defuns
+
 (defun lsp-symbol-outline--get-symbol-docs-rust (_plist-item)
        "Move to :symbol-start-point and parse Rustdoc block above symbol.
 Return first sentence of block as string."
