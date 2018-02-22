@@ -39,8 +39,8 @@
 
 (defcustom lsp-symbol-outline-window-size
            '(- 0 (/ (frame-width) 6))
-           "LSP symbol outline default window size. Can be a sexp or
-int."
+           "LSP symbol outline default window size. Can be a sexp or int.
+Default value divides frame width by 6."
            :group 'lsp-symbol-outline)
 
 (defcustom lsp-symbol-outline-lock-window
