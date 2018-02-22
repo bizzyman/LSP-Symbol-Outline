@@ -46,6 +46,7 @@
 
 (require 'lsp-mode)
 (require 'lsp-symbol-outline-custom)
+(require 'lsp-symbol-outline-faces)
 (require 'outline)
 (require 'outline-magic)
 (require 's)
@@ -75,75 +76,6 @@
             (18 . "Array"))
           "Alist of symbol kind associations. Used to print correct symbol
 kind names.")
-
-;; Faces
-
-(defface lsp-symbol-outline-button-face
-         '((t :foreground "#93a0b2"))
-         "Face for outline node buttons."
-         :group 'lsp-symbol-outline-faces)
-
-(defface lsp-symbol-outline-atom-icons-face
-         '((t (:inherit default
-               :family "atomicons"
-               :height 1.0)))
-         "Face for atom-outline icons."
-         :group 'lsp-symbol-outline-faces)
-
-(defface lsp-symbol-outline-term-symbol-type-name-face
-         ;; '((t (:foreground "white")))
-         '((t (:foreground "color-141")))
-         "Face for outline symbol types node."
-         :group 'lsp-symbol-outline-faces)
-
-(defface lsp-symbol-outline-class-face-has-doc
-         '((t (:inherit font-lock-type-face
-               :underline t)))
-         "Face for outline class nodes with docs."
-         :group 'lsp-symbol-outline-faces)
-
-(defface lsp-symbol-outline-class-face
-         '((t (:inherit font-lock-type-face)))
-         "Face for outline class nodes."
-         :group 'lsp-symbol-outline-faces)
-
-(defface lsp-symbol-outline-function-face-has-doc
-         '((t (:inherit font-lock-function-name-face
-               :underline t)))
-         "Face for outline function nodes with docs."
-         :group 'lsp-symbol-outline-faces)
-
-(defface lsp-symbol-outline-function-face
-         '((t :inherit font-lock-function-name-face))
-         "Face for outline function nodes."
-         :group 'lsp-symbol-outline-faces)
-
-(defface lsp-symbol-outline-var-face
-         '((t :inherit font-lock-variable-name-face))
-         "Face for outline variable nodes."
-         :group 'lsp-symbol-outline-faces)
-
-(defface lsp-symbol-outline-arg-face
-         '((t :inherit font-lock-doc-face))
-         "Face for outline node arguments."
-         :group 'lsp-symbol-outline-faces)
-
-(defface lsp-symbol-outline-arg-type-face
-         '((t :inherit font-lock-type-face))
-         "Face for outline node arguments."
-         :group 'lsp-symbol-outline-faces)
-
-(defface lsp-symbol-outline-html-tag-props-face
-         '((t :foreground "#75B5AA"))
-         "Face for outline html props."
-         :group 'lsp-symbol-outline-faces)
-
-(defface lsp-symbol-outline-inside-current-symbol
-         ;; '((t :foreground "#0C1314" :background "#9ea8aa"))
-         ;; '((t :foreground "deep sky blue"))
-         '((t :inherit default))
-         "Face for ."
-         :group 'lsp-symbol-outline-faces)
 
 
 ;; Major mode
