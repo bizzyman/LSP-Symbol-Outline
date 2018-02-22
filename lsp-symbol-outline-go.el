@@ -140,10 +140,12 @@ information. Go specific."
                                     (mark)
                                     (point)))
                   0)
-                 (lsp-symbol-outline--set-arg-type-props
-                  (1- (point))
-                  (save-excursion
-                    (search-backward " " (line-beginning-position) t))))
+                 (condition-case err
+                  (lsp-symbol-outline--set-arg-type-props
+                   (1- (point))
+                   (save-excursion
+                     (search-backward " " (line-beginning-position) t)))
+                  ('error nil)))
              (re-search-forward "[^ ]" (line-end-position) t))
            (vertical-motion 1))))
 

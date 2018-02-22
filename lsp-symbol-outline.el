@@ -31,7 +31,7 @@
 ;;
 ;;  - Refactor
 ;;  - Introduce configuration
-;;  - Support More languages: C++, Rust, Go, Elixir, HTML
+;;  - Support More languages: C++, Rust, Go, PHP, Elixir, HTML
 ;;  - Split file into language specific parts
 ;;  - Debug tree sort function
 ;;  - Make url based functions async and parallel
@@ -1437,10 +1437,10 @@ outline buffer."
 ;; Keybindings
 
 (define-key lsp-symbol-outline-mode-map
-            (kbd  "j")
+            (kbd  "C-n")
             #'lsp-symbol-outline-next-line)
 (define-key lsp-symbol-outline-mode-map
-            (kbd  "k")
+            (kbd  "C-p")
             #'lsp-symbol-outline-previous-line)
 (define-key lsp-symbol-outline-mode-map
             (kbd  "TAB")
@@ -1455,10 +1455,10 @@ outline buffer."
             (kbd  "q")
             #'lsp-symbol-outline-kill-window)
 (define-key lsp-symbol-outline-mode-map
-            (kbd  "gg")
+            (kbd  "M-<")
             #'lsp-symbol-outline-go-top)
 (define-key lsp-symbol-outline-mode-map
-            (kbd  "G")
+            (kbd  "M->")
             #'lsp-symbol-outline-go-to-bottom)
 (define-key lsp-symbol-outline-mode-map
             (kbd  "o")
@@ -1467,13 +1467,13 @@ outline buffer."
             (kbd  "i")
             #'lsp-symbol-outline-cycle-arg-vis)
 (define-key lsp-symbol-outline-mode-map
-            (kbd  "gh")
+            (kbd  "C-M-u")
             #'lsp-symbol-outline-up-scope)
 (define-key lsp-symbol-outline-mode-map
-            (kbd  "gk")
+            (kbd  "M-p")
             #'lsp-symbol-outline-up-sibling)
 (define-key lsp-symbol-outline-mode-map
-            (kbd  "gj")
+            (kbd  "M-n")
             #'lsp-symbol-outline-down-sibling)
 (define-key lsp-symbol-outline-mode-map
             (kbd  "w")
