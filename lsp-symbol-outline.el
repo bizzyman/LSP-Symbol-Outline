@@ -45,6 +45,7 @@
 ;; Dependencies
 
 (require 'lsp-mode)
+(require 'lsp-symbol-outline-custom)
 (require 'outline)
 (require 'outline-magic)
 (require 's)
@@ -52,19 +53,6 @@
 
 
 ;; Vars
-
-(defvar lsp-symbol-outline-cursor-sensor-overlay-priority 1000
-        "Initial priority for cursor-sensor-functions overlay.")
-
-(defcustom lsp-symbol-outline-window-position
-           'right
-           "LSP symbol outline window position."
-           :group 'lsp-symbol-outline)
-
-(defcustom lsp-symbol-outline-modeline-format
-           '((:propertize "%b" face mode-line-buffer-id) " ")
-           "Local modeline format for the LSP symbol outline mode."
-           :group 'lsp-symbol-outline)
 
 (defconst lsp-symbol-outline-symbol-kind-alist
           '((1  . "File")
@@ -673,7 +661,8 @@ Iterates over symbol list. For use with langs that resemeble C/Java in syntax."
          ;; indentation
          (lsp-symbol-outline--print-indentation item)
          ;; icon
-         (if window-system
+         (if (and window-system
+                  lsp-symbol-outline-print-fancy-glyphs)
              (lsp-symbol-outline--print-symbol-icon-gui item)
            (lsp-symbol-outline--print-symbol-icon-term item))
          ;; button
@@ -710,7 +699,8 @@ For use with langs that resemeble C/Java in syntax."
                            list-sorted)))
              ;; icon
              (insert "  ")
-             (if window-system
+             (if (and window-system
+                      lsp-symbol-outline-print-fancy-glyphs)
                  (lsp-symbol-outline--print-symbol-icon-gui (car same-kind-list))
                (lsp-symbol-outline--print-symbol-icon-term (car same-kind-list)))
              ;; kind name
@@ -993,6 +983,13 @@ For use with langs that delimit arg types with colons."
 Returns list of plists."
        (--sort (< (plist-get it :kind) (plist-get other :kind)) list))
 
+(defun lsp-symbol-outline--save-arg-level (arg-level)
+       "Set level of visibility for arguments and their types."
+       (cond
+        ((eq arg-level 0) 2)
+        ((eq arg-level 1) 0)
+        ((eq arg-level 2) 1)))
+
 (defun lsp-symbol-outline-print-sorted ()
        "Save current line data. Sort list of symbols by category. Call the
 function contained by `lsp-symbol-outline-print-sorted-func' to print an
@@ -1010,8 +1007,15 @@ data."
          (funcall lsp-symbol-outline-print-sorted-func list-sorted)
          (goto-char (point-min))
          (forward-whitespace 2)
-         ;; TODO save arg visibility level between calling sorted/sequential?
+
          (funcall lsp-symbol-outline-args-props-func)
+         ;;save arg visibility level between calling sorted/sequential
+         (setq-local lsp-symbol-outline-args-inv
+                     (lsp-symbol-outline--save-arg-level
+                      lsp-symbol-outline-args-inv))
+         (if (not (eq 2 lsp-symbol-outline-args-inv))
+             (funcall lsp-symbol-outline-visibility-cycling-func)
+           (setq-local lsp-symbol-outline-args-inv 0))
          (setq-local lsp-symbol-outline-is-sorted t)
          (search-forward-regexp (format "%s\\((\\|$\\)" line) nil t)
          (beginning-of-line-text)
@@ -1032,13 +1036,21 @@ order of symbol appearance in source document."
                               (buffer-substring-no-properties
                                (line-beginning-position) (line-end-position)))))
              (inhibit-read-only t)
-             (inhibit-message t))
+             ;; (inhibit-message t)
+             )
          (erase-buffer)
          (funcall lsp-symbol-outline-print-func
                   lsp-outline-list
                   lsp-symbol-outline-src-buffer)
-         ;; TODO save arg visibility level between calling sorted/sequential?
+
          (funcall lsp-symbol-outline-args-props-func)
+         ;;save arg visibility level between calling sorted/sequential
+         (setq-local lsp-symbol-outline-args-inv
+                     (lsp-symbol-outline--save-arg-level
+                      lsp-symbol-outline-args-inv))
+         (if (not (eq 2 lsp-symbol-outline-args-inv))
+             (funcall lsp-symbol-outline-visibility-cycling-func)
+           (setq-local lsp-symbol-outline-args-inv 0))
          (setq-local lsp-symbol-outline-is-sorted nil)
          (lsp-symbol-outline-go-top)
          (search-forward-regexp (format "%s\\((\\|$\\)" l) nil t)
@@ -1199,16 +1211,14 @@ and use old one instead."
                                            depth-handler
                                            args-handler
                                            docs-handler)))
-
               )
              (mod major-mode)
              (buf (current-buffer))
              (window (ignore-errors (split-window
                                      (selected-window)
-                                     (- 0 (/ (frame-width) 6))
+                                     (eval lsp-symbol-outline-window-size)
                                      lsp-symbol-outline-window-position)))
              (outline-buffer (lsp-symbol-outline--create-buffer)))
-
 
          (setq-local buffer-orig-lsp-outline-list lsp-outline-list)
          (setq-local lsp-outline-buffer outline-buffer)
@@ -1222,37 +1232,39 @@ and use old one instead."
 
          (pop-to-buffer outline-buffer)
          (erase-buffer)
-
-         (setq-local lsp-outline-buf-mode (symbol-name mod))
-
-         ;; print the outline
-         (funcall print-handler lsp-outline-list buf)
-         ;; color the arguments and types
-         (funcall arg-props-handler)
          (lsp-symbol-outline-mode)
 
-         ;; Remove mode-line
-         (setq-local mode-line-format nil)
-         ;; Set initial visibility level of args
-         (setq-local lsp-symbol-outline-args-inv 0)
          (setq-local lsp-outline-buf-mode (symbol-name mod))
-         (setq-local lsp-outline-list lsp-outline-list)
-         (setq-local lsp-symbol-outline-src-buffer buf)
-         ;; start buffer in hierarchical view, not sorted view
-         (setq-local lsp-symbol-outline-is-sorted nil)
-         ;; set the visibility cycling function
-         (setq-local lsp-symbol-outline-visibility-cycling-func
-                     visibility-cycle-handler)
          ;; set the print function
          (setq-local lsp-symbol-outline-print-func
                      print-handler)
          ;; set the print sorted function
          (setq-local lsp-symbol-outline-print-sorted-func
                      print-sorted-handler)
+         ;; Remove mode-line
+         (setq-local mode-line-format lsp-symbol-outline-modeline-format)
+         ;; Set initial visibility level of args
+         (setq-local lsp-symbol-outline-args-inv
+                     lsp-symbol-outline-default-arg-visibility)
+         (setq-local lsp-outline-buf-mode (symbol-name mod))
+         (setq-local lsp-outline-list lsp-outline-list)
+         (setq-local lsp-symbol-outline-src-buffer buf)
+         ;; set the visibility cycling function
+         (setq-local lsp-symbol-outline-visibility-cycling-func
+                     visibility-cycle-handler)
          ;; set the arg text props function
          (setq-local lsp-symbol-outline-args-props-func
                      arg-props-handler)
-
+         ;; print the outline
+         (if lsp-symbol-outline-start-sorted
+             (lsp-symbol-outline-print-sorted)
+           (lsp-symbol-outline-print-sequential))
+         ;; color the arguments and types
+         (funcall arg-props-handler)
+         ;; (if (not (eq 2 lsp-symbol-outline-args-inv))
+         ;;     (funcall visibility-cycle-handler)
+         ;;   (setq-local lsp-symbol-outline-args-inv 0))
+         ;; create overlays that highlight which symbol cursor is in
          (with-current-buffer lsp-symbol-outline-src-buffer
              ;; add run-with-idle-timer for detecing which symbol cursor in
            (dolist (i lsp-outline-list)
@@ -1286,8 +1298,12 @@ and use old one instead."
              (forward-whitespace 1)
            (forward-whitespace 2))
 
+         ;; fold?
+         (if lsp-symbol-outline-startup-folded
+             (outline-hide-sublevels 3))
+
          ;; HACK to stop window size jumping around
-         (setq window-size-fixed 'width)
+         (setq window-size-fixed lsp-symbol-outline-lock-window)
          (toggle-truncate-lines 1)))    ;TODO make quiet
 
 (defun lsp-symbol-outline-cycle-arg-vis ()
