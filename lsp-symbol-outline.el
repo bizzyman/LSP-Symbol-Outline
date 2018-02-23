@@ -252,7 +252,7 @@ List of plists is returned by the local var agg-items."
 
         (setq index (1+ index))
         (push plist-item agg-items)))
-    (reverse agg-items)))
+         (reverse agg-items)))
 
 (defun lsp-symbol-outline--sort-list-by-index (list)
        "Sort list of plists by their :symbol-start-point property and update
@@ -1191,11 +1191,6 @@ and use old one instead."
          (if lsp-symbol-outline-start-sorted
              (lsp-symbol-outline-print-sorted)
            (lsp-symbol-outline-print-sequential))
-         ;; color the arguments and types
-         (funcall arg-props-handler)
-         ;; (if (not (eq 2 lsp-symbol-outline-args-inv))
-         ;;     (funcall visibility-cycle-handler)
-         ;;   (setq-local lsp-symbol-outline-args-inv 0))
          ;; create overlays that highlight which symbol cursor is in
          (with-current-buffer lsp-symbol-outline-src-buffer
              ;; add run-with-idle-timer for detecing which symbol cursor in
