@@ -127,10 +127,10 @@ For use with languages that have C/Java like syntax."
        (save-excursion
          (if
              (progn
-               (goto-line
-                (1+ (gethash "line"
-                             (gethash "end"
-                                      hasht-range))))
+               (goto-char
+                (lsp--position-to-point (gethash "start"
+                                                 hasht-range)))
+               (beginning-of-line)
                (move-to-column
                 (gethash "character"
                          (gethash "end"
