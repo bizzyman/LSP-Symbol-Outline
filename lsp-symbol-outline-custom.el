@@ -82,6 +82,19 @@ Default is 0."
 ascii chars for symbol category representation. Default is t."
            :group 'lsp-symbol-outline)
 
+(defcustom lsp-symbol-outline-enable-position-indicator
+           t
+           "Whether to enable an indicator that shows where the cursor in the
+source buffer is positioned in relation to symbols inside the symbol outline.
+Default is t."
+           :group 'lsp-symbol-outline)
+
+(defcustom lsp-symbol-outline-position-indicator-char
+           ">"
+           "The indicator character that shows where the cursor in the source
+buffer is positioned in relation to symbols inside the symbol outline."
+           :group 'lsp-symbol-outline)
+
 (provide 'lsp-symbol-outline-custom)
 
 ;;; lsp-symbol-outline-custom.el ends here

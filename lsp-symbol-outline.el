@@ -415,7 +415,8 @@ currently resides."
                                   'face 'lsp-symbol-outline-inside-current-symbol)
                  (let ((o (make-overlay (line-beginning-position)
                                         (1+(line-beginning-position)) )))
-                   (overlay-put o 'display ">")
+                   (overlay-put o 'display
+                                lsp-symbol-outline-position-indicator-char)
                    (overlay-put o 'face 'lsp-symbol-outline-inside-current-symbol)
                    (overlay-put o 'priority 99))))))))
 
@@ -1096,7 +1097,7 @@ buffer, you can use `C-SPC' to set the mark, then use this
        (save-excursion (goto-longest-line (point-min)
                                           (point-max))
                        (end-of-line)
-                       (ceiling (* 1.15 (1+ (current-column))))))
+                       (ceiling (* 1.07 (1+ (current-column))))))
 
 ; Interactive defuns
 
@@ -1192,17 +1193,18 @@ and use old one instead."
              (lsp-symbol-outline-print-sorted)
            (lsp-symbol-outline-print-sequential))
          ;; create overlays that highlight which symbol cursor is in
-         (with-current-buffer lsp-symbol-outline-src-buffer
-             ;; add run-with-idle-timer for detecing which symbol cursor in
-           (dolist (i lsp-outline-list)
-             (lsp-symbol-outline-add-idle-timer-highlight-props
-              (plist-get i :symbol-start-point)
-              (plist-get i :symbol-end-point)
-              (plist-get i :line)))
-           (setq-local lsp-s-o-idle-timer-highlight
-                       (run-with-idle-timer 0.3 t
-                                            #'lsp-symbol-outline-highlight-symbol))
-           (lsp-symbol-outline-highlight-symbol))
+         (if lsp-symbol-outline-enable-position-indicator
+          (with-current-buffer lsp-symbol-outline-src-buffer
+            ;; add run-with-idle-timer for detecing which symbol cursor in
+            (dolist (i lsp-outline-list)
+              (lsp-symbol-outline-add-idle-timer-highlight-props
+               (plist-get i :symbol-start-point)
+               (plist-get i :symbol-end-point)
+               (plist-get i :line)))
+            (setq-local lsp-s-o-idle-timer-highlight
+                        (run-with-idle-timer 0.3 t
+                                             #'lsp-symbol-outline-highlight-symbol))
+            (lsp-symbol-outline-highlight-symbol)))
 
          ;; Outline mode for folding symbols
          (outline-minor-mode 1)
