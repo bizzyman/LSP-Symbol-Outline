@@ -1,5 +1,5 @@
 # LSP-Symbol-Outline
-A tree like view for symbols in Emacs using the Language Server Protocol. Currently works with Javascript, Python, C/C++, Go, Rust and Java.
+A tree like view for symbols in Emacs using the Language Server Protocol. Currently works with Javascript, Python, C/C++, PHP, Go, Rust and Java.
 
 ![LSP-Symbol-outline-sorted](https://i.imgur.com/1koizch.png)
 ![LSP-Symbol-outline](https://i.imgur.com/mpDgD3Y.png)
@@ -21,6 +21,7 @@ My goal is to publish this on melpa some day which will auto-install dependencie
 * lsp-rust
 * lsp-go
 * lsp-python
+* lsp-php
 * lsp-javascript-typescript
 * tern (for func arguments)
 * cquery
@@ -52,6 +53,7 @@ Bind one of the following functions, or call  from `M-:`:\
 `(lsp-symbol-outline-make-outline-java)`\
 `(lsp-symbol-outline-make-outline-C)`\
 `(lsp-symbol-outline-make-outline-rust)`\
+`(lsp-symbol-outline-make-outline-php)`\
 `(lsp-symbol-outline-make-outline-go)`
 
 OR use the following convenience function:
@@ -62,6 +64,8 @@ OR use the following convenience function:
            (lsp-symbol-outline-make-outline-python))
           ((equal major-mode 'go-mode)
            (lsp-symbol-outline-make-outline-go))
+          ((equal major-mode 'php-mode)
+           (lsp-symbol-outline-make-outline-php))
           ((equal major-mode 'rust-mode)
            (lsp-symbol-outline-make-outline-rust))
           ((or (equal major-mode 'c-mode)
