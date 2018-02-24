@@ -31,7 +31,7 @@
 ;;
 ;;  - Refactor
 ;;  - Introduce configuration
-;;  - Support More languages: C++, Rust, Go, PHP, Elixir, HTML
+;;  - Support More languages: C++, Rust, Go, PHP, Ruby, Elixir, HTML
 ;;  - Split file into language specific parts
 ;;  - Debug tree sort function
 ;;  - Make url based functions async and parallel

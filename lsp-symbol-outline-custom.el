@@ -86,7 +86,7 @@ ascii chars for symbol category representation. Default is t."
            t
            "Whether to enable an indicator that shows where the cursor in the
 source buffer is positioned in relation to symbols inside the symbol outline.
-Default is t."
+Disabling this feature may increase performance slightly. Default is t."
            :group 'lsp-symbol-outline)
 
 (defcustom lsp-symbol-outline-position-indicator-char
