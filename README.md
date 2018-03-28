@@ -114,11 +114,11 @@ Furthermore, features to this package will track LSP features. One that is on th
 
 ### Known Bugs
 
-**Why are the function arguments in JS modes missing?**
+**Why are the function arguments in JS modes missing?** \
 This seems to be related to tern. It seems to get confused when more than one file from different projects are opened
 simultaneously, or after a long idle period. Try reverting the buffer.
 
-**Why is symbol X missing from the outline?**
+**Why is symbol X missing from the outline?** \
 This package relies on the symbols returned by the LSP "textDocument/documentSymbol"
 method, as such, it has no control over the symbols that get displayed in the
 outline tree. Therefore, missing symbols that you think should have been included
