@@ -263,8 +263,13 @@ indexes. Return list of plists in order they appear in document."
        (let ((list_ list)
              (index 1))
          (setq list_
-               (--sort (< (plist-get it    :symbol-start-point)
-                          (plist-get other :symbol-start-point))
+               (--sort (cond
+                        ((= (plist-get it    :symbol-start-point)
+                            (plist-get other :symbol-start-point))
+                         (< (plist-get it    :symbol-end-point)
+                            (plist-get other :symbol-end-point)))
+                        (t (< (plist-get it    :symbol-start-point)
+                              (plist-get other :symbol-start-point))))
                        list_))
         (dolist (item list_)
           (plist-put item :index index)
