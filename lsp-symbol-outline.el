@@ -1280,8 +1280,12 @@ buffer."
        "Widen the window to the width of longest line in buffer."
        (interactive)
        (setq window-size-fixed nil)
-       (enlarge-window (- (lsp-symbol-outline--find-longest-line)
-                          (window-width (selected-window)))
+       (enlarge-window (if lsp-symbol-outline-max-window-width
+                           (min lsp-symbol-outline-max-window-width
+                            (- (lsp-symbol-outline--find-longest-line)
+                               (window-width (selected-window))))
+                        (- (lsp-symbol-outline--find-longest-line)
+                           (window-width (selected-window))))
                        t)
        (setq window-size-fixed 'width))
 

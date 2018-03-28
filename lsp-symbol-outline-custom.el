@@ -95,6 +95,16 @@ Disabling this feature may increase performance slightly. Default is t."
 buffer is positioned in relation to symbols inside the symbol outline."
            :group 'lsp-symbol-outline)
 
+(defcustom lsp-symbol-outline-max-window-width
+           nil
+           "Set a max width for the symbol outline buffer to expand to. Value is
+number of columns that window cannot exceed when
+`lsp-symbol-outline-widen-to-widest-column' is called.
+
+Default is nil, which expands the window as much as needed."
+           :group 'lsp-symbol-outline)
+
+
 (provide 'lsp-symbol-outline-custom)
 
 ;;; lsp-symbol-outline-custom.el ends here
