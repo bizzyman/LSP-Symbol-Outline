@@ -39,7 +39,7 @@
 ;; Defuns
 
 (defun lsp-symbol-outline--get-symbol-docs-php (_plist-item)
-       "Move to :symbol-start-point and parse javadoc block above symbol.
+       "Move to :symbol-start-point and parse phpdoc block above symbol.
 Return first sentence of block as string."
        (vertical-motion -1)
        (if (and (search-forward "*/" (line-end-position) t)

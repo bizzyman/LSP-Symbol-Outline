@@ -103,9 +103,12 @@ Ensure that lsp-mode is on and enabled."
 :name property. Return plist."
        (plist-put plist-item
                   :name
-                  (replace-regexp-in-string "\(.+\)"
-                                            ""
-                                            (gethash "name" hasht-item))))
+                  (pcase
+                   (replace-regexp-in-string "\(.+\)"
+                                             ""
+                                             (gethash "name" hasht-item))
+                   ("" "*anon*")
+                   (SYMBOL SYMBOL))))
 
 (defun lsp-symbol-outline--get-symbol-start-line (hasht-range)
        "Get the symbol start line from hash table HASHT-RANGE.
@@ -254,7 +257,7 @@ List of plists is returned by the local var agg-items."
         (push plist-item agg-items)))
          (reverse agg-items)))
 
-(defun lsp-symbol-outline--sort-list-by-index (list)
+(defun lsp-symbol-outline--sort-list-by-start (list)
        "Sort list of plists by their :symbol-start-point property and update
 indexes. Return list of plists in order they appear in document."
        (let ((list_ list)
@@ -324,13 +327,14 @@ Return tree sorted list of plists."
            (if (plist-get item :args)
                (let ((m (replace-regexp-in-string "\n" "" (plist-get item :args)))
                      (c))
-                 (if m
-                     (progn
-                       (setq c (s-count-matches "," m))
-                       (push (number-sequence (plist-get item :index)
-                                              (+ (plist-get item :index)
-                                                 (if (equal c 0) 0 c)) 1)
-                             indices))))))
+                 (cond
+                  ((string-match "( *void *)" m) nil)
+                  (m
+                   (progn (setq c (s-count-matches "," m))
+                          (push (number-sequence (plist-get item :index)
+                                                 (+ (plist-get item :index)
+                                                    (if (equal c 0) 0 c)) 1)
+                                indices)))))))
          (setq indices (-flatten indices))
          (setf list (-remove-at-indices indices list))))
 
@@ -670,17 +674,17 @@ For use with langs that resemeble C/Java in syntax."
 (defun lsp-symbol-outline--find-closest-cell (list current-line)
        "Find the closest line to line that main LSP sym outline function called
 from. Return line number."
-  (cond ((ignore-errors
-           (+ 2 (progn
-                  (-elem-index
-                   (car
-                    (last
-                     (-filter
-                      (lambda (x) (< (plist-get x :symbol-start-point)
-                                     current-line))
-                      list)))
-                   list)))))
-        (t 1)))
+       (cond ((ignore-errors
+                (+ 2 (progn
+                       (-elem-index
+                        (car
+                         (last
+                          (-filter
+                           (lambda (x) (< (plist-get x :symbol-start-point)
+                                          current-line))
+                           list)))
+                        list)))))
+             (t 1)))
 
 (defun lsp-symbol-outline--jump-paren ()
        "Jump to the matching paren."
@@ -763,7 +767,17 @@ information. For use with langs that have C/Java like syntax."
                 (or (search-backward "," (line-beginning-position) t)
                     (search-backward "(" (line-beginning-position) t))
                 (+ (point) 1))))
-           (vertical-motion 1))))
+           (vertical-motion 1)))
+       ;; highlight "void" symbols
+       (save-excursion
+         (goto-char (point-min))
+         (while (re-search-forward "( *?void *?)" nil t)
+         (lsp-symbol-outline--set-arg-type-props
+          (1- (point))
+          (save-excursion
+            (progn
+             (search-backward "(" (line-beginning-position) t)
+             (+ (point) 1)))))))
 
 (defun lsp-symbol-outline--set-arg-types-inv-clike-generic ()
        "Parse buffer for comma char and find argument types. Call
@@ -1097,7 +1111,7 @@ buffer, you can use `C-SPC' to set the mark, then use this
        (save-excursion (goto-longest-line (point-min)
                                           (point-max))
                        (end-of-line)
-                       (ceiling (* 1.07 (1+ (current-column))))))
+                       (ceiling (* 1.01 (1+ (current-column))))))
 
 ; Interactive defuns
 
@@ -1132,13 +1146,13 @@ and use old one instead."
               ;;                 (md5 (buffer-substring-no-properties (point-min)
               ;;                                                      (point-max)))))
               ;;     buffer-orig-lsp-outline-list
-              ;;   (funcall tree-sort-handler (lsp-symbol-outline--sort-list-by-index
+              ;;   (funcall tree-sort-handler (lsp-symbol-outline--sort-list-by-start
               ;;                               (lsp-symbol-outline--create-symbols-list
               ;;                                sym-end-handler
               ;;                                depth-handler
               ;;                                args-handler
               ;;                                docs-handler))))
-              (funcall tree-sort-handler (lsp-symbol-outline--sort-list-by-index
+              (funcall tree-sort-handler (lsp-symbol-outline--sort-list-by-start
                                           (lsp-symbol-outline--create-symbols-list
                                            sym-end-handler
                                            depth-handler
