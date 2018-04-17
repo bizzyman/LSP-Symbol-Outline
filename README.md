@@ -3,7 +3,7 @@ A tree like view for symbols in Emacs using the Language Server Protocol. Curren
 
 ![LSP-Symbol-outline-sorted](https://raw.githubusercontent.com/bizzyman/LSP-Symbol-Outline/master/scrot.png)
 
-## DISCLAIMER
+## WARNING
 This is both my first ever emacs package and an extremely early version of this package so be warned! It will have many bugs (which are welcome to be reported).
 
 ## Dependencies
