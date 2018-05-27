@@ -498,31 +498,43 @@ hierarchy."
 atomicons.ttf font. May appear in source code as the wrong glyps or unicode
 placeholders. Outputted correctly when face set."
        (cond
-        ((equal (plist-get item :kind) 2)  ;Module
+        ((memq (plist-get item :kind) '(1 2 4))  ;Module
          (insert (propertize " "
                              'face 'lsp-symbol-outline-atom-icons-face
                              'font-lock-ignore 't)))
-        ((equal (plist-get item :kind) 5)  ;Class
+        ((memq (plist-get item :kind) '(5 23))  ;Class
          (insert (propertize " "
                              'face 'lsp-symbol-outline-atom-icons-face
                              'font-lock-ignore 't)))
-        ((equal (plist-get item :kind) 6)  ;Method
+        ((eq (plist-get item :kind) 6)  ;Method
          (insert (propertize " "
                              'face 'lsp-symbol-outline-atom-icons-face
                              'font-lock-ignore 't)))
-        ((equal (plist-get item :kind) 12) ;Function
+        ((eq (plist-get item :kind) 12) ;Function
          (insert (propertize " "
                              'face 'lsp-symbol-outline-atom-icons-face
                              'font-lock-ignore 't)))
-        ((equal (plist-get item :kind) 13) ;Variable
+        ((eq (plist-get item :kind) 13) ;Variable
          (insert (propertize " "
                              'face 'lsp-symbol-outline-atom-icons-face
                              'font-lock-ignore 't)))
-        ((equal (plist-get item :kind) 14) ;Constant
+        ((memq (plist-get item :kind) '(14 21 255 252)) ;Constant
          (insert (propertize " "
                              'face 'lsp-symbol-outline-atom-icons-face
                              'font-lock-ignore 't)))
-        ((equal (plist-get item :kind) 18) ;Array
+        ((eq (plist-get item :kind) 15) ;string
+         (insert (propertize " "
+                             'face 'lsp-symbol-outline-atom-icons-face
+                             'font-lock-ignore 't)))
+        ((eq (plist-get item :kind) 16) ;number
+         (insert (propertize " "
+                             'face 'lsp-symbol-outline-atom-icons-face
+                             'font-lock-ignore 't)))
+        ((eq (plist-get item :kind) 20) ;key
+         (insert (propertize " "
+                             'face 'lsp-symbol-outline-atom-icons-face
+                             'font-lock-ignore 't)))
+        ((memq (plist-get item :kind) '(10 18)) ;Array
          (insert (propertize " "
                              'face 'lsp-symbol-outline-atom-icons-face
                              'font-lock-ignore 't)))
