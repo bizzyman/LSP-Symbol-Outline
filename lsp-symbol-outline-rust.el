@@ -118,8 +118,8 @@ functions. Creates LSP sym ouline buffer."
         #'lsp-symbol-outline--tree-sort-rem-args
         #'lsp-symbol-outline--print-outline-clike-generic
         #'lsp-symbol-outline--print-outline-sorted-clike-generic
-        #'lsp-symbol-outline--finalize-arg-props-rust
-        #'lsp-symbol-outline--cycle-arg-visibility-colon-generic))
+        (lambda () nil)
+        #'lsp-symbol-outline--cycle-arg-visibility-clike-generic))
 
 (provide 'lsp-symbol-outline-rust)
 

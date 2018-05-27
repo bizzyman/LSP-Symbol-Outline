@@ -179,7 +179,7 @@ Returns arg string based on whether it is empty or not."
        (goto-char (plist-get plist-item :symbol-start-point))
        (save-excursion
          (search-forward "(" nil t)
-         (pcase (buffer-substring-no-properties
+         (pcase (buffer-substring
                  (progn (forward-char -1) (point))
                  (progn (forward-sexp) (point)))
            ("()" nil)
@@ -632,9 +632,7 @@ Iterates over symbol list. For use with langs that resemeble C/Java in syntax."
                        (plist-get item :args)))))
                (if arg-string
                    (progn
-                     (insert (propertize arg-string
-                                         'face 'lsp-symbol-outline-arg-face
-                                         'font-lock-ignore 't))))))
+                     (insert arg-string)))))
          (insert "\n")))
 
 (defun lsp-symbol-outline--print-outline-sorted-clike-generic (list-sorted)
@@ -714,34 +712,10 @@ from. Return line number."
               (forward-char 1)
               (backward-sexp))))
 
-(defun lsp-symbol-outline--set-arg-type-props (beg end)
-       "Set text-properties to sym outline arg type face."
-       (set-text-properties beg end
-                            '(face 'lsp-symbol-outline-arg-type-face)))
-
 (defun lsp-symbol-outline--set-arg-props-inv (beg end)
        "Set text-properties to invisible."
-       (set-text-properties beg end
-                            '(invisible t)))
-
-(defun lsp-symbol-outline--set-arg-props-vis (beg end)
-       "Set text properties of args visible."
-       (set-text-properties beg end
-                            '(face lsp-symbol-outline-arg-face)))
-
-(defun lsp-symbol-outline--set-info-vis ()
-       "Search buffer for parens and set all found positions to visible
-text property."
-       (save-excursion
-         (goto-char (point-min))
-         (while (re-search-forward "(.+)" nil 'noerror 1)
-           (let ((ref (match-string-no-properties 1)))
-             (lsp-symbol-outline--set-arg-props-vis
-              (point)
-              (save-excursion
-                (forward-char -1)
-                (lsp-symbol-outline--jump-paren)
-                (point)))))))
+       (put-text-property beg end
+                          'invisible t))
 
 (defun lsp-symbol-outline--set-info-inv ()
        "Search buffer for parens and set all found positions to invisible
@@ -756,106 +730,26 @@ text property."
               (lsp-symbol-outline--jump-paren)
               (point))))))
 
-(defun lsp-symbol-outline--finalize-arg-props-clike-generic ()
-       "Parse buffer for comma char and find argument types. Position of types
-is passed to `lsp-symbol-outline--set-arg-type-props' which sets different text
-properties on argument type information.
-
-Regex parsing is used to set invisible properties to toggle hiding type
-information. For use with langs that have C/Java like syntax."
-       (save-excursion
-         (goto-char (point-min))
-         (while (re-search-forward ")" nil 'noerror 1)
-           (search-backward " " (line-beginning-position) t)
-           (lsp-symbol-outline--set-arg-type-props
-            (point)
-            (progn
-              (or (search-backward "," (line-beginning-position) t)
-                  (search-backward "(" (line-beginning-position) t))
-              (+ (point) 1)))
-           (while
-               (save-excursion (or
-                                (search-backward ","
-                                                 (line-beginning-position) t)
-                                (search-backward "("
-                                                 (line-beginning-position) t)))
-             (search-backward " " (line-beginning-position) t)
-             (lsp-symbol-outline--set-arg-type-props
-              (point)
-              (progn
-                (or (search-backward "," (line-beginning-position) t)
-                    (search-backward "(" (line-beginning-position) t))
-                (+ (point) 1))))
-           (vertical-motion 1)))
-       ;; highlight "void" symbols
-       (save-excursion
-         (goto-char (point-min))
-         (while (re-search-forward "( *?void *?)" nil t)
-         (lsp-symbol-outline--set-arg-type-props
-          (1- (point))
-          (save-excursion
-            (progn
-             (search-backward "(" (line-beginning-position) t)
-             (+ (point) 1)))))))
-
-(defun lsp-symbol-outline--set-arg-types-inv-clike-generic ()
-       "Parse buffer for comma char and find argument types. Call
-`lsp-symbol-outline--set-arg-props-inv' on found positions to set argument
-information invisible by setting text properties.
-For use with langs that have C/Java like syntax."
-       (save-excursion
-         (goto-char (point-min))
-         (while (re-search-forward ")" nil 'noerror 1)
-           (search-backward " " (line-beginning-position) t)
-           (let ((p (point))
-                 (e))
-             (cond ((search-backward "," (line-beginning-position) t)
-                    (setq e (+ (point) 1)))
-                   ((search-backward "(" (line-beginning-position) t)
-                    (progn (setq e (+ (point) 1)) (setq p (1+ p)))))
-             (when e (lsp-symbol-outline--set-arg-props-inv
-                      p e)))
-           (while
-               (save-excursion (or
-                                (search-backward ","
-                                                 (line-beginning-position) t)
-                                (search-backward "("
-                                                 (line-beginning-position) t)))
-             (search-backward " " (line-beginning-position) t)
-             (let ((p (point)) (e))
-               (cond ((search-backward "," (line-beginning-position) t)
-                      (setq e (+ (point) 1)))
-                     ((search-backward "(" (line-beginning-position) t)
-                      (progn (setq e (+ (point) 1)) (setq p (1+ p)))))
-               (lsp-symbol-outline--set-arg-props-inv
-                p e)))
-           (vertical-motion 1))))
-
 (defun lsp-symbol-outline--cycle-arg-visibility-clike-generic ()
        "If `lsp-symbol-outline-args-inv' is 0, set only argument types invisible.
 If `lsp-symbol-outline-args-inv' is 1, set arguments invisible.
 If `lsp-symbol-outline-args-inv' is 2, set all to visible.
 For use with langs that have C/Java like syntax."
        (cond
-        ;; arg types invisible
-        ((equal lsp-symbol-outline-args-inv 0)
-         (read-only-mode 0)
-         (lsp-symbol-outline--set-arg-types-inv-clike-generic)
-         (setq-local lsp-symbol-outline-args-inv 1)
-         (read-only-mode 1))
         ;; args invisible
-        ((equal lsp-symbol-outline-args-inv 1)
+        ((equal lsp-symbol-outline-args-inv 0)
          (read-only-mode 0)
          (lsp-symbol-outline--set-info-inv)
          (setq-local lsp-symbol-outline-args-inv 2)
          (read-only-mode 1))
         ;; all visible
-        ((equal lsp-symbol-outline-args-inv 2)
+        ((memq lsp-symbol-outline-args-inv '(1 2))
          (read-only-mode 0)
          (progn
            (remove-list-of-text-properties (point-min) (point-max) '(invisible))
-           (lsp-symbol-outline--set-info-vis)
-           (lsp-symbol-outline--finalize-arg-props-clike-generic))
+           ;; (lsp-symbol-outline--set-info-vis)
+           ;; (lsp-symbol-outline--finalize-arg-props-clike-generic)
+           )
          (setq-local lsp-symbol-outline-args-inv 0)
          (read-only-mode 1))))
 

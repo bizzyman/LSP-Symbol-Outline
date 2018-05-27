@@ -59,96 +59,6 @@ Return first sentence of block as string."
                  (re-search-forward "\\([?!]\\|\\(\\.[ $]\\)\\|\\(^ *[^/ ]\\)\\)")
                  (match-beginning 1)))))))))
 
-(defun lsp-symbol-outline--set-arg-types-inv-go ()
-       "Parse buffer for comma char and find argument types. Call
-`lsp-symbol-outline--set-arg-props-inv' on found positions to set argument
-information invisible by setting text properties.
-Go specific."
-       (save-excursion
-         (goto-char (point-min))
-         (while (re-search-forward "(" nil 'noerror 1)
-           (while
-               (progn
-                 (push-mark (point) t)
-                 (or
-                  (re-search-forward ","
-                                     (line-end-position) t)
-                  (re-search-forward ")"
-                                     (line-end-position) t)))
-             (if (>
-                  (s-count-matches " "
-                                   (buffer-substring-no-properties
-                                    (mark)
-                                    (point)))
-                  0)
-                 (lsp-symbol-outline--set-arg-props-inv
-                  (1- (point))
-                  (save-excursion
-                    (search-backward " " (line-beginning-position) t))))
-             (re-search-forward "[^ ]" (line-end-position) t))
-           (vertical-motion 1))))
-
-(defun lsp-symbol-outline--cycle-arg-visibility-go ()
-       "If `lsp-symbol-outline-args-inv' is 0, set only argument types invisible.
-If `lsp-symbol-outline-args-inv' is 1, set arguments invisible.
-If `lsp-symbol-outline-args-inv' is 2, set all to visible.
-Go specific."
-       (cond
-        ;; arg types invisible
-        ((equal lsp-symbol-outline-args-inv 0)
-         (read-only-mode 0)
-         (lsp-symbol-outline--set-arg-types-inv-go)
-         (setq-local lsp-symbol-outline-args-inv 1)
-         (read-only-mode 1))
-        ;; args invisible
-        ((equal lsp-symbol-outline-args-inv 1)
-         (read-only-mode 0)
-         (lsp-symbol-outline--set-info-inv)
-         (setq-local lsp-symbol-outline-args-inv 2)
-         (read-only-mode 1))
-        ;; all visible
-        ((equal lsp-symbol-outline-args-inv 2)
-         (read-only-mode 0)
-         (progn
-           (remove-list-of-text-properties (point-min) (point-max) '(invisible))
-           (lsp-symbol-outline--set-info-vis)
-           (lsp-symbol-outline--finalize-arg-props-go))
-         (setq-local lsp-symbol-outline-args-inv 0)
-         (read-only-mode 1))))
-
-(defun lsp-symbol-outline--finalize-arg-props-go ()
-       "Parse buffer for comma char and find argument types. Position of types
-is passed to `lsp-symbol-outline--set-arg-type-props' which sets different text
-properties on argument type information.
-
-Regex parsing is used to set invisible properties to toggle hiding type
-information. Go specific."
-       (save-excursion
-         (goto-char (point-min))
-         (while (re-search-forward "(" nil 'noerror 1)
-           (while
-               (progn
-                 (push-mark (point) t)
-                 (or
-                  (re-search-forward ","
-                                     (line-end-position) t)
-                  (re-search-forward ")"
-                                     (line-end-position) t)))
-             (if (>
-                  (s-count-matches " "
-                                   (buffer-substring-no-properties
-                                    (mark)
-                                    (point)))
-                  0)
-                 (condition-case err
-                  (lsp-symbol-outline--set-arg-type-props
-                   (1- (point))
-                   (save-excursion
-                     (search-backward " " (line-beginning-position) t)))
-                  ('error nil)))
-             (re-search-forward "[^ ]" (line-end-position) t))
-           (vertical-motion 1))))
-
 ;;;###autoload
 (defun lsp-symbol-outline-make-outline-go ()
        "Call `lsp-symbol-outline-create-buffer-window' with Go specific
@@ -162,8 +72,8 @@ functions. Creates LSP sym ouline buffer."
         #'lsp-symbol-outline--tree-sort  ;??? can't find nested code in go src
         #'lsp-symbol-outline--print-outline-clike-generic
         #'lsp-symbol-outline--print-outline-sorted-clike-generic
-        #'lsp-symbol-outline--finalize-arg-props-go
-        #'lsp-symbol-outline--cycle-arg-visibility-go))
+        (lambda () nil)
+        #'lsp-symbol-outline--cycle-arg-visibility-clike-generic))
 
 (provide 'lsp-symbol-outline-go)
 
