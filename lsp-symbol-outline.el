@@ -676,9 +676,7 @@ For use with langs that resemeble C/Java in syntax."
                              (plist-get item :args)))))
                      (if arg-string
                          (progn
-                           (insert (propertize arg-string
-                                               'face 'lsp-symbol-outline-arg-face
-                                               'font-lock-ignore 't))))))
+                           (insert arg-string)))))
                (insert "\n"))
              (insert " \t \n"))))
        (save-excursion
