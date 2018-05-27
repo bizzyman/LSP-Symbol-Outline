@@ -547,36 +547,40 @@ placeholders. Outputted correctly when face set."
        "Inserts the terminal version of icon for symbol. Uses standard ascii
 chars."
        (cond
-        ((equal (plist-get item :kind) 2)  ;Module
+        ((memq (plist-get item :kind) '(1 2 4))  ;Module
          (insert (propertize "M "
                              'face 'lsp-symbol-outline-term-symbol-type-name-face
                              'font-lock-ignore 't)))
-        ((equal (plist-get item :kind) 5)  ;Class
+        ((eq (plist-get item :kind) 5)  ;Class
          (insert (propertize "C "
                              'face 'lsp-symbol-outline-term-symbol-type-name-face
                              'font-lock-ignore 't)))
-        ((equal (plist-get item :kind) 6)  ;Method
+        ((eq (plist-get item :kind) 23)  ;Struct
+         (insert (propertize "S "
+                             'face 'lsp-symbol-outline-term-symbol-type-name-face
+                             'font-lock-ignore 't)))
+        ((eq (plist-get item :kind) 6)  ;Method
          (insert (propertize "m "
                              'face 'lsp-symbol-outline-term-symbol-type-name-face
                              'font-lock-ignore 't)))
-        ((equal (plist-get item :kind) 12) ;Function
+        ((eq (plist-get item :kind) 12) ;Function
          (insert (propertize "F "
                              'face 'lsp-symbol-outline-term-symbol-type-name-face
                              'font-lock-ignore 't)))
-        ((equal (plist-get item :kind) 13) ;Variable
+        ((eq (plist-get item :kind) 13) ;Variable
          (insert (propertize "V "
                              'face 'lsp-symbol-outline-term-symbol-type-name-face
                              'font-lock-ignore 't)))
-        ((equal (plist-get item :kind) 14) ;Constant
+        ((memq (plist-get item :kind) '(14 21 255 252)) ;Constant
          (insert (propertize "K "
                              'face 'lsp-symbol-outline-term-symbol-type-name-face
                              'font-lock-ignore 't)))
-        ((equal (plist-get item :kind) 18) ;Array
+        ((memq (plist-get item :kind) '(10 18)) ;Array
          (insert (propertize "A "
                              'face 'lsp-symbol-outline-term-symbol-type-name-face
                              'font-lock-ignore 't)))
         (t
-         (insert (propertize "* "       ;all other symbol types
+         (insert (propertize "- "       ;all other symbol types
                              'face 'lsp-symbol-outline-term-symbol-type-name-face
                              'font-lock-ignore 't)))))
 
