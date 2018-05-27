@@ -48,9 +48,6 @@
 (require 'lsp-mode)
 (require 'lsp-symbol-outline-custom)
 (require 'lsp-symbol-outline-faces)
-(if (and (featurep evil-mode) evil-mode)
-    (require 'lsp-symbol-outline-evil))
-
 (require 'outline)
 (require 'outline-magic)
 (require 's)
@@ -1404,6 +1401,9 @@ m        mark (select) the symbol name at point")))
 
 
 ;; Keybindings
+
+(if (and (featurep 'evil) evil-mode)
+    (require 'lsp-symbol-outline-evil))
 
 (define-key lsp-symbol-outline-mode-map
             (kbd  "C-n")

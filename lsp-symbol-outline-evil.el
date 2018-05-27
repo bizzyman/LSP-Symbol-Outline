@@ -31,7 +31,6 @@
 ;;; Code:
 
 (require 'evil)
-(require 'lsp-symbol-outline)
 
 (evil-define-state lsp-symbol-outline
                    "LSP-Sym-outline state"
