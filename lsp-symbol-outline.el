@@ -65,7 +65,7 @@
             (6 . "Method")
             (7 . "Property")
             (8 . "Field")
-            (9 . "Constructor"),
+            (9 . "Constructor")
             (10 . "Enum")
             (11 . "Interface")
             (12 . "Function")
