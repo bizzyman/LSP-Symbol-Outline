@@ -51,10 +51,13 @@
             #'lsp-symbol-outline-previous-line)
 (define-key evil-lsp-symbol-outline-state-map
             (kbd  "TAB")
-            #'outline-hide-sublevels)
+            #'lsp-symbol-outline-hide-sublevels)
 (define-key evil-lsp-symbol-outline-state-map
             (kbd  "<backtab>")
             #'outline-show-all)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "W")
+            #'lsp-symbol-outline-toggle-window-lock-width)
 (define-key evil-lsp-symbol-outline-state-map
             (kbd  "f")
             #'lsp-symbol-outline-toggle-folding)

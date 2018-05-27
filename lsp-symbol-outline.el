@@ -1184,6 +1184,17 @@ buffer."
        (interactive)
        (funcall lsp-symbol-outline-visibility-cycling-func))
 
+(defun lsp-symbol-outline-hide-sublevels (prefix)
+       "Hide sublevels for current column level, with prefix arg hide all
+ sublevels."
+       (interactive "P")
+       (if prefix
+           (progn
+             (outline-hide-sublevels 3)
+             (goto-char 1)
+             (move-to-column 4))
+         (outline-hide-sublevels)))
+
 (defun lsp-symbol-outline-toggle-sorted ()
        "Toggle whether symbol outline is grouped by symbol kind."
        (interactive)
@@ -1269,6 +1280,16 @@ buffer."
            (forward-whitespace 1)
            (forward-whitespace 2)))
 
+(defun lsp-symbol-outline-toggle-window-lock-width ()
+       "Toggle window width as locked size."
+       (interactive)
+       (if window-size-fixed
+           (progn
+             (setq window-size-fixed nil)
+             (message "window width size unlocked"))
+         (setq window-size-fixed t)
+         (message "window width size locked")))
+
 (defun lsp-symbol-outline-toggle-folding ()
        "Fold the local tree at point. Hides symbols in scope below current
 symbol's."
@@ -1328,10 +1349,13 @@ outline buffer."
             #'lsp-symbol-outline-previous-line)
 (define-key lsp-symbol-outline-mode-map
             (kbd  "TAB")
-            #'outline-hide-sublevels)
+            #'lsp-symbol-outline-hide-sublevels)
 (define-key lsp-symbol-outline-mode-map
             (kbd  "<backtab>")
             #'outline-show-all)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "W")
+             #'lsp-symbol-outline-toggle-window-lock-width)
 (define-key lsp-symbol-outline-mode-map
             (kbd  "f")
             #'lsp-symbol-outline-toggle-folding)
