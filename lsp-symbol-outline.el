@@ -179,7 +179,7 @@ Returns arg string based on whether it is empty or not."
        (goto-char (plist-get plist-item :symbol-start-point))
        (save-excursion
          (search-forward "(" nil t)
-         (pcase (buffer-substring-no-properties
+         (pcase (buffer-substring
                  (progn (forward-char -1) (point))
                  (progn (forward-sexp) (point)))
            ("()" nil)
@@ -632,9 +632,7 @@ Iterates over symbol list. For use with langs that resemeble C/Java in syntax."
                        (plist-get item :args)))))
                (if arg-string
                    (progn
-                     (insert (propertize arg-string
-                                         'face 'lsp-symbol-outline-arg-face
-                                         'font-lock-ignore 't))))))
+                     (insert arg-string)))))
          (insert "\n")))
 
 (defun lsp-symbol-outline--print-outline-sorted-clike-generic (list-sorted)
@@ -805,31 +803,16 @@ information invisible by setting text properties.
 For use with langs that have C/Java like syntax."
        (save-excursion
          (goto-char (point-min))
-         (while (re-search-forward ")" nil 'noerror 1)
-           (search-backward " " (line-beginning-position) t)
-           (let ((p (point))
-                 (e))
-             (cond ((search-backward "," (line-beginning-position) t)
-                    (setq e (+ (point) 1)))
-                   ((search-backward "(" (line-beginning-position) t)
-                    (progn (setq e (+ (point) 1)) (setq p (1+ p)))))
-             (when e (lsp-symbol-outline--set-arg-props-inv
-                      p e)))
-           (while
-               (save-excursion (or
-                                (search-backward ","
-                                                 (line-beginning-position) t)
-                                (search-backward "("
-                                                 (line-beginning-position) t)))
-             (search-backward " " (line-beginning-position) t)
-             (let ((p (point)) (e))
-               (cond ((search-backward "," (line-beginning-position) t)
-                      (setq e (+ (point) 1)))
-                     ((search-backward "(" (line-beginning-position) t)
-                      (progn (setq e (+ (point) 1)) (setq p (1+ p)))))
-               (lsp-symbol-outline--set-arg-props-inv
-                p e)))
-           (vertical-motion 1))))
+         (while (re-search-forward "(" nil 'noerror 1)
+           (let* ((e (1- (line-end-position)))
+                  (tp (text-property-any (point) e 'face 'font-lock-variable-name-face))
+                  (n))
+             (while tp
+               (goto-char tp)
+               (setq n (next-single-property-change (point) 'face nil e))
+               (lsp-symbol-outline--set-arg-props-inv tp n)
+               (setq tp (text-property-any (point) e 'face 'font-lock-variable-name-face)))
+             (vertical-motion 1)))))
 
 (defun lsp-symbol-outline--cycle-arg-visibility-clike-generic ()
        "If `lsp-symbol-outline-args-inv' is 0, set only argument types invisible.
