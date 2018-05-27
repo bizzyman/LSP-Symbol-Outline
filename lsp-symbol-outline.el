@@ -56,15 +56,16 @@
 ;; Vars
 
 (defconst lsp-symbol-outline-symbol-kind-alist
-          '((1  . "File")
-            (2  . "Module")
-            (3  . "Namespace")
-            (4  . "Package")
-            (5  . "Class")
-            (6  . "Method")
-            (7  . "Property")
-            (8  . "Field")
-            (9  . "Constructor")
+          '((0 . "Unknown")
+            (1 . "File")
+            (2 . "Module")
+            (3 . "Namespace")
+            (4 . "Package")
+            (5 . "Class")
+            (6 . "Method")
+            (7 . "Property")
+            (8 . "Field")
+            (9 . "Constructor"),
             (10 . "Enum")
             (11 . "Interface")
             (12 . "Function")
@@ -73,9 +74,22 @@
             (15 . "String")
             (16 . "Number")
             (17 . "Boolean")
-            (18 . "Array"))
+            (18 . "Array")
+            (19 . "Object")
+            (20 . "Key")
+            (21 . "Null")
+            (22 . "Enum Member")
+            (23 . "Struct")
+            (24 . "Event")
+            (25 . "Operator")
+            (26 . "Type Parameter")
+            ;; extended
+            (252 . "TypeAlias")
+            (253 . "Parameter")
+            (254 . "StaticMethod")
+            (255 . "Macro"))
           "Alist of symbol kind associations. Used to print correct symbol
-kind names.")
+kind names. Contains extensions from non core lsp projects like cquery.")
 
 
 ;; Major mode
@@ -463,7 +477,7 @@ hierarchy."
 (defun lsp-symbol-outline--insert-sym-kind-name (same-kind-list)
        "Insert string based on plist's :kind property. Uses
 `lsp-symbol-outline-symbol-kind-alist' for name associations."
-       (insert (if (equal (plist-get (car same-kind-list) :kind) 5)
+       (insert (if (memq (plist-get (car same-kind-list) :kind) '(252 5))
                    (propertize
                     (format "%ses\n"
                             (alist-get (plist-get (car same-kind-list) :kind)
