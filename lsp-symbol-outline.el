@@ -848,16 +848,25 @@ Returns list of plists."
         ((eq arg-level 1) 0)
         ((eq arg-level 2) 1)))
 
+(defun lsp-symbol-outline-find-plist-with-index (orig-index) ;; ??? slow? FIXME
+       "Find plist that matches `original-index' from `lsp-outline-list'."
+       (car (-filter (lambda (x) (eq (plist-get x :index) orig-index))
+                     lsp-outline-list)))
+
+(defun lsp-symbol-outline-get-current-line-plist-index () ;; ??? slow? FIXME
+       "Find the plist on line point is on from `lsp-outline-list'."
+       (let* ((current-line (string-to-number (format-mode-line "%l")))
+              (p (-filter (lambda (x) (eq (plist-get x :line) current-line))
+                          lsp-outline-list)))
+         (plist-get (car p) :index)))
+
 (defun lsp-symbol-outline-print-sorted ()
        "Save current line data. Sort list of symbols by category. Call the
 function contained by `lsp-symbol-outline-print-sorted-func' to print an
 outline grouped by symbol kind. Call function that sets argument text properties.
 Set buffer local variable `lsp-symbol-outline-is-sorted' to t. Find saved line
 data."
-       (let ((line (nth 1 (s-match " +. \\([a-zA-Z0-9_-]+\\)"
-                                   (buffer-substring-no-properties
-                                    (line-beginning-position)
-                                    (line-end-position)))))
+       (let ((index (lsp-symbol-outline-get-current-line-plist-index))
              (list-sorted (lsp-symbol-outline--sort-by-category lsp-outline-list))
              (inhibit-read-only t)
              (inhibit-message t))
@@ -875,7 +884,9 @@ data."
              (funcall lsp-symbol-outline-visibility-cycling-func)
            (setq-local lsp-symbol-outline-args-inv 0))
          (setq-local lsp-symbol-outline-is-sorted t)
-         (search-forward-regexp (format "%s\\((\\|$\\)" line) nil t)
+         (if index 
+             (goto-line (plist-get (lsp-symbol-outline-find-plist-with-index index) ;; ??? goto-line speed?
+                                :line)))
          (beginning-of-line-text)
          (with-current-buffer lsp-symbol-outline-src-buffer
            (lsp-symbol-outline--delete-idle-timer-overlays)
@@ -889,10 +900,7 @@ data."
 (defun lsp-symbol-outline-print-sequential ()
        "Reverse the grouping of symbols by kind and print a symbol outline in
 order of symbol appearance in source document."
-       (let ((l (nth 1
-                     (s-match " +. \\([a-zA-Z0-9_-]+\\)"
-                              (buffer-substring-no-properties
-                               (line-beginning-position) (line-end-position)))))
+       (let ((index (lsp-symbol-outline-get-current-line-plist-index))
              (inhibit-read-only t)
              ;; (inhibit-message t)
              )
@@ -911,7 +919,9 @@ order of symbol appearance in source document."
            (setq-local lsp-symbol-outline-args-inv 0))
          (setq-local lsp-symbol-outline-is-sorted nil)
          (lsp-symbol-outline-go-top)
-         (search-forward-regexp (format "%s\\((\\|$\\)" l) nil t)
+         (if index 
+             (goto-line (plist-get (lsp-symbol-outline-find-plist-with-index index) ;; ??? goto-line speed?
+                                :line)))
          (beginning-of-line-text)
          (forward-to-word 1)
          (with-current-buffer lsp-symbol-outline-src-buffer
