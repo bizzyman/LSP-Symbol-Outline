@@ -104,6 +104,11 @@ number of columns that window cannot exceed when
 Default is nil, which expands the window as much as needed."
            :group 'lsp-symbol-outline)
 
+(defcustom lsp-symbol-outline-evil-keys
+           (if (and (featurep 'evil) evil-mode) t nil)
+           "Whether or not evil keys are being used for outline."
+           :group 'lsp-symbol-outline)
+
 
 (provide 'lsp-symbol-outline-custom)
 

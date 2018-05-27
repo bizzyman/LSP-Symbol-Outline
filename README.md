@@ -1,4 +1,4 @@
-# LSP-Symbol-Outline
+# LSP Symbol Outline
 A tree like view for symbols in Emacs using the Language Server Protocol. Currently works with Javascript, Python, C/C++, PHP, Go, Rust and Java.
 
 ![LSP-Symbol-outline-sorted](https://raw.githubusercontent.com/bizzyman/LSP-Symbol-Outline/master/scrot.png)
@@ -82,6 +82,28 @@ Underlined symbols have documentation.
 
 ## Key Bindings
 
+### emacs
+* **C-n** move down
+* **C-p** move up
+* **TAB** hide all sublevels
+* **BACKTAB** show all sublevels
+* **f** fold sublevel
+* **q** kill window
+* **M-<** go to top
+* **M->** go to bottom
+* **o** go to symbol in document lose focus
+* **i** cycle argument visibility
+* **C-M-u** go up scope
+* **M-p** go up sibling
+* **M-n** go down sibling
+* **w** widen to widest column
+* **s** toggle sorted view (sorts by symbol category)
+* **l** peek symbol (goes to location in document, but does not lose focus)
+* **d** show documentation string if available
+* **m** mark (select) the symbol name at point
+* **h** show help message
+
+### evil
 * **j** move down
 * **k** move up
 * **TAB** hide all sublevels
@@ -100,6 +122,7 @@ Underlined symbols have documentation.
 * **l** peek symbol (goes to location in document, but does not lose focus)
 * **d** show documentation string if available
 * **m** mark (select) the symbol name at point
+* **h** show help message
 
 ## Notes on current state of this package, lsp and bugs
 

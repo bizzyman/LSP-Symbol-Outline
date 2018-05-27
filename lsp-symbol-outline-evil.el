@@ -100,6 +100,9 @@
 (define-key evil-lsp-symbol-outline-state-map
             (kbd  "m")
             #'lsp-symbol-outline-mark-symbol)
+(define-key evil-lsp-symbol-outline-state-map
+            (kbd  "h")
+            #'lsp-symbol-outline-help)
 
 (provide 'lsp-symbol-outline-evil)
 

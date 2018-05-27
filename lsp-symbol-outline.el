@@ -44,9 +44,13 @@
 
 ;; Dependencies
 
+; LSP-S-O
 (require 'lsp-mode)
 (require 'lsp-symbol-outline-custom)
 (require 'lsp-symbol-outline-faces)
+(if (and (featurep evil-mode) evil-mode)
+    (require 'lsp-symbol-outline-evil))
+
 (require 'outline)
 (require 'outline-magic)
 (require 's)
@@ -884,7 +888,7 @@ data."
              (funcall lsp-symbol-outline-visibility-cycling-func)
            (setq-local lsp-symbol-outline-args-inv 0))
          (setq-local lsp-symbol-outline-is-sorted t)
-         (if index 
+         (if index
              (goto-line (plist-get (lsp-symbol-outline-find-plist-with-index index) ;; ??? goto-line speed?
                                 :line)))
          (beginning-of-line-text)
@@ -919,7 +923,7 @@ order of symbol appearance in source document."
            (setq-local lsp-symbol-outline-args-inv 0))
          (setq-local lsp-symbol-outline-is-sorted nil)
          (lsp-symbol-outline-go-top)
-         (if index 
+         (if index
              (goto-line (plist-get (lsp-symbol-outline-find-plist-with-index index) ;; ??? goto-line speed?
                                 :line)))
          (beginning-of-line-text)
@@ -1326,6 +1330,50 @@ outline buffer."
            (goto-char (car b))
            (set-mark (cdr b)))))
 
+(defun lsp-symbol-outline-help ()
+       (interactive)
+       (if lsp-symbol-outline-evil-keys
+           (message
+            "
+j        move down
+k        move up
+TAB      hide all sublevels
+BACKTAB  show all sublevels
+f        fold sublevel
+q        kill window
+gg       go to top
+G        go to bottom
+o        go to symbol in document lose focus
+i        cycle argument visibility
+gh       go up scope
+gk       go up sibling
+gj       go down sibling
+w        widen to widest column
+s        toggle sorted view (sorts by symbol category)
+l        peek symbol (goes to location in document, but does not lose focus)
+d        show documentation string if available
+m        mark (select) the symbol name at point")
+         (message
+"
+C-n      move down
+C-p      move up
+TAB      hide all sublevels
+BACKTAB  show all sublevels
+f        fold sublevel
+q        kill window
+M-<      go to top
+M->      go to bottom
+o        go to symbol in document lose focus
+i        cycle argument visibility
+C-M-u    go up scope
+M-p      go up sibling
+M-n      go down sibling
+w        widen to widest column
+s        toggle sorted view (sorts by symbol category)
+l        peek symbol (goes to location in document, but does not lose focus)
+d        show documentation string if available
+m        mark (select) the symbol name at point")))
+
 (defun lsp-symbol-outline-kill-window ()
        "Kill the lsp-symbol-outline window and remove cursor-sensor-functions."
        (interactive)
@@ -1398,6 +1446,9 @@ outline buffer."
 (define-key lsp-symbol-outline-mode-map
             (kbd  "m")
             #'lsp-symbol-outline-mark-symbol)
+(define-key lsp-symbol-outline-mode-map
+            (kbd  "h")
+            #'lsp-symbol-outline-help)
 
 
 (provide 'lsp-symbol-outline)
