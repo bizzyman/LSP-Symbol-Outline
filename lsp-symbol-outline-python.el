@@ -201,7 +201,8 @@ Python specific."
          (read-only-mode 0)
          (progn
            (remove-list-of-text-properties (point-min) (point-max) '(invisible))
-           (lsp-symbol-outline--set-info-vis))
+           ;; (lsp-symbol-outline--set-info-vis)
+           )
          (setq-local lsp-symbol-outline-args-inv 0)
          (read-only-mode 1))))
 

@@ -848,7 +848,7 @@ For use with langs that delimit arg types with colons."
          (read-only-mode 0)
          (progn
            (remove-list-of-text-properties (point-min) (point-max) '(invisible))
-           (lsp-symbol-outline--set-info-vis)
+           ;; (lsp-symbol-outline--set-info-vis)
            (lsp-symbol-outline--finalize-arg-props-colon-generic))
          (setq-local lsp-symbol-outline-args-inv 0)
          (read-only-mode 1))))
@@ -1362,6 +1362,7 @@ gh       go up scope
 gk       go up sibling
 gj       go down sibling
 w        widen to widest column
+W        toggle unlock window width
 s        toggle sorted view (sorts by symbol category)
 l        peek symbol (goes to location in document, but does not lose focus)
 d        show documentation string if available
@@ -1382,6 +1383,7 @@ C-M-u    go up scope
 M-p      go up sibling
 M-n      go down sibling
 w        widen to widest column
+W        toggle unlock window width
 s        toggle sorted view (sorts by symbol category)
 l        peek symbol (goes to location in document, but does not lose focus)
 d        show documentation string if available
