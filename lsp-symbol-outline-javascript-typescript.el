@@ -279,8 +279,8 @@ ouline buffer."
         #'lsp-symbol-outline--tree-sort
         #'lsp-symbol-outline--print-outline-js
         #'lsp-symbol-outline--print-outline-sorted-js
-        #'lsp-symbol-outline--finalize-arg-props-colon-generic
-        #'lsp-symbol-outline--cycle-arg-visibility-colon-generic))
+        (lambda () nil)
+        #'lsp-symbol-outline--cycle-arg-visibility-clike-generic))
 
 (provide 'lsp-symbol-outline-javascript-typescript)
 
