@@ -23,7 +23,7 @@ My goal is to publish this on melpa some day which will auto-install dependencie
 * lsp-php
 * lsp-javascript-typescript
 * tern (for func arguments)
-* cquery
+* cquery/ccls
 
 ## Install instructions
 
